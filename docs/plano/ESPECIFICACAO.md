@@ -27,7 +27,7 @@ Invariantes globais: nunca duplicar crédito ou débito, nunca perder evento con
 | Concorrência | **Lock pessimista por wallet** (`SELECT … FOR UPDATE`), `READ COMMITTED`, `lock_timeout` ≈ 3s. `version` incrementada e conferida no `UPDATE … WHERE version = :expected` como guarda extra | Unidade de concorrência = `walletId`; hot wallets serializam sem tempestade de retries (optimistic degrada em hot wallet); wallets diferentes em paralelo; sem lock global |
 | Ordem de locks | Insert da própria linha de idempotência → **lock da wallet** → leituras de transações relacionadas. Toda mutação de algo da wallet acontece sob o lock dela; nunca `FOR UPDATE` em outras linhas de transação | Evita deadlock entre processamento normal, reversões e reprocessador |
 | Idempotência | `UNIQUE (idempotency_key)` (o header é a fonte da verdade) + `UNIQUE (provider_id, external_transaction_id)` + `payload_hash`. Insert com `ON CONFLICT DO NOTHING`; duplicatas concorrentes bloqueiam no índice único até o vencedor commitar e então leem a linha | Persistente e multi-instância: 50 apostas idênticas em paralelo → 1 débito e 49 replays |
-| Resultado do replay | Persistir snapshot `balance_after_amount` em toda transação finalizada (inclusive LOSS/REJECTED) | Regra 7.7: replay devolve o resultado original, **inclusive o saldo observado naquele momento** |
+| Resultado do replay | Persistir snapshot `balance_after_amount` + `balance_after_currency` (moeda **da wallet**) em toda transação finalizada (inclusive LOSS/REJECTED; em `CURRENCY_MISMATCH` a moeda difere da transação) | Regra 7.7: replay devolve o resultado original, **inclusive o saldo observado naquele momento** |
 | Reversão única | Índice único parcial: no máximo uma REFUND/ROLLBACK `PROCESSED` por `reference_transaction_id` (mais rígido que "uma por tipo": impede REFUND + ROLLBACK da mesma BET creditarem duas vezes) | Garantido no schema; interpretação documentada |
 | Wallet ↔ ledger | Constraint trigger diferida: no commit, `wallet.balance/version` deve bater com `balance_after/wallet_version` do último lançamento (ou saldo 0 sem lançamentos) | "Toda alteração de saldo tem lançamento e vice-versa" garantido no schema |
 | Imutabilidade | Ledger: trigger bloqueia UPDATE/DELETE + role da aplicação só tem INSERT/SELECT. Transações: trigger bloqueia qualquer alteração após status terminal e qualquer alteração de colunas de negócio | Estados terminais e ledger imutáveis no banco |
@@ -77,9 +77,9 @@ Somente campos `readonly`; `create` garante `balanceBefore ± money === balanceA
 
 | Kind | Efeito | Observações |
 |---|---|---|
-| BET | débito | `money > 0`; sem saldo → `REJECTED INSUFFICIENT_FUNDS` |
+| BET | débito | `money > 0`; sem saldo → `REJECTED INSUFFICIENT_FUNDS`; referência opcional validada como no WIN |
 | WIN | crédito | referência opcional à BET da mesma rodada; se informada, é validada (e se ausente → `PENDING_REFERENCE`, regra 7.8) |
-| LOSS | nenhum | PROCESSED, sem ledger, emite `WagerTransactionProcessed`; aceita `money >= 0` |
+| LOSS | nenhum | PROCESSED, sem ledger, emite `WagerTransactionProcessed`; aceita `money >= 0`; referência opcional validada como no WIN |
 | REFUND | crédito | referência deve ser **BET** `PROCESSED` |
 | ROLLBACK | inverso da referência | referência pode ser BET (→ crédito), WIN (→ débito), REFUND (→ débito) |
 
@@ -136,7 +136,7 @@ wager_transactions(
   reference_transaction_id uuid NULL REFERENCES wager_transactions,
   status text NOT NULL CHECK (status IN ('PENDING','PENDING_REFERENCE','PROCESSED','REJECTED','FAILED')),
   failure_code text NULL,
-  balance_after_amount numeric(20,2) NULL,
+  balance_after_amount numeric(20,2) NULL, balance_after_currency char(3) NULL,  -- moeda da wallet
   attempts int NOT NULL DEFAULT 0, next_attempt_at timestamptz NULL,
   correlation_id text NULL,
   created_at timestamptz NOT NULL, processed_at timestamptz NULL, updated_at timestamptz NOT NULL,
@@ -144,7 +144,8 @@ wager_transactions(
   CHECK (kind NOT IN ('REFUND','ROLLBACK') OR reference_external_transaction_id IS NOT NULL),
   CHECK (kind NOT IN ('BET','WIN','REFUND','ROLLBACK','OPENING') OR amount > 0),
   CHECK ((status IN ('REJECTED','FAILED')) = (failure_code IS NOT NULL)),
-  CHECK (status <> 'PENDING_REFERENCE' OR next_attempt_at IS NOT NULL)
+  CHECK (status <> 'PENDING_REFERENCE' OR next_attempt_at IS NOT NULL),
+  CHECK ((balance_after_amount IS NULL) = (balance_after_currency IS NULL))
 );
 CREATE UNIQUE INDEX ux_reversal_once ON wager_transactions(reference_transaction_id)
   WHERE kind IN ('REFUND','ROLLBACK') AND status = 'PROCESSED';
@@ -337,7 +338,9 @@ Todo teste de integração/concorrência termina com `assertLedgerInvariant()`: 
 
 - Entrada monetária estrita com 2 casas (`"25"` é inválido).
 - Reversão única por referência, de qualquer tipo.
-- WIN com referência opcional; se informada, validada ou pendente.
+- WIN, BET e LOSS com referência opcional; se informada, validada como no WIN (só BET, mesmo escopo, sem conferir valor) ou pendente. *(decisão de 2026-10-07)*
+- WIN/BET/LOSS que referenciam uma BET já revertida (REFUND/ROLLBACK processado) são `REJECTED ALREADY_REVERSED`. *(decisão de 2026-10-07)*
+- O snapshot de saldo é gravado na moeda da wallet (`balance_after_currency`), inclusive em `CURRENCY_MISMATCH`. *(decisão de 2026-10-07)*
 - LOSS aceita `0.00`.
 - `WALLET_NOT_FOUND` não é persistido (sem alvo de FK).
 - `FAILED` apenas para transações persistidas com retries de infra esgotados.
