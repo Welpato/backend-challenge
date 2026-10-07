@@ -1,0 +1,139 @@
+# Ambiente local completo: PostgreSQL, LocalStack (SQS), migrations, 3× api atrás do nginx e os workers.
+#   docker compose up -d --build
+#   curl -s localhost:8080/health/ready
+# Réplicas configuráveis: API_REPLICAS, CONSUMER_REPLICAS, OUTBOX_REPLICAS, REPROCESSOR_REPLICAS (default 3).
+name: jungle-wagering
+
+x-app-env: &app-env
+  # A aplicação conecta com o papel `app` (só DML); o DDL é do `migrator`.
+  DATABASE_URL: postgresql://app:app@postgres:5432/wagering
+  SQS_ENDPOINT: http://localstack:4566
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  PORT: "3000"
+  # INSTANCE_ID não é definido: o default é o hostname do container (distingue as réplicas nos logs).
+
+x-app: &app
+  build: .
+  image: jungle-wagering:local
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    localstack:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+  healthcheck:
+    test: ["CMD", "bun", "scripts/healthcheck.ts", "ready"]
+    interval: 5s
+    timeout: 3s
+    retries: 6
+    start_period: 15s
+  stop_grace_period: 30s
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: wagering
+      POSTGRES_PASSWORD: wagering
+      POSTGRES_DB: wagering
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wagering -d wagering"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  localstack:
+    # 4.14 é a última versão semver da imagem community; as releases calendário (2026.03+) exigem
+    # LOCALSTACK_AUTH_TOKEN. Para usar outra imagem: LOCALSTACK_IMAGE=... (e o token, se for o caso).
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:4.14}
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+      # URLs de fila no formato http://<host da requisição>/queue/<região>/<conta>/<nome>.
+      SQS_ENDPOINT_STRATEGY: path
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./docker/localstack-init.sh:/etc/localstack/init/ready.d/10-create-queues.sh:ro
+    healthcheck:
+      # A fila de eventos é a última criada pelo init: existir = init concluído.
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name wallet-events.fifo >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 10s
+
+  migrate:
+    build: .
+    image: jungle-wagering:local
+    command: ["bun", "scripts/migrate.ts", "up"]
+    environment:
+      DATABASE_URL: postgresql://migrator:migrator@postgres:5432/wagering
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      APP_ROLE: api
+    deploy:
+      replicas: ${API_REPLICAS:-3}
+
+  nginx:
+    image: nginx:1.29-alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  consumer:
+    <<: *app
+    environment:
+      <<: *app-env
+      APP_ROLE: consumer
+    deploy:
+      replicas: ${CONSUMER_REPLICAS:-3}
+
+  outbox:
+    <<: *app
+    environment:
+      <<: *app-env
+      APP_ROLE: outbox
+    deploy:
+      replicas: ${OUTBOX_REPLICAS:-3}
+
+  reprocessor:
+    <<: *app
+    environment:
+      <<: *app-env
+      APP_ROLE: reprocessor
+    deploy:
+      replicas: ${REPROCESSOR_REPLICAS:-3}
+
+volumes:
+  pgdata:

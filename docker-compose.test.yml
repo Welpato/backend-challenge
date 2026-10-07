@@ -1,0 +1,45 @@
+# Infra efêmera para testes de integração/concorrência: portas separadas do ambiente de dev
+# e banco em tmpfs (descartado ao parar o container).
+#   docker compose -f docker-compose.test.yml up -d     # = bun run infra:test:up
+#   bun run test:integration                           # espera a infra (scripts/wait-for-infra.ts) e roda
+#   docker compose -f docker-compose.test.yml down     # = bun run infra:test:down
+# Os testes leem .env.test (o `bun test` define NODE_ENV=test).
+name: jungle-wagering-test
+
+services:
+  postgres-test:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: wagering
+      POSTGRES_PASSWORD: wagering
+      POSTGRES_DB: wagering
+    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wagering -d wagering"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  localstack-test:
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:4.14}
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+      SQS_ENDPOINT_STRATEGY: path
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
+    ports:
+      - "4567:4566"
+    volumes:
+      - ./docker/localstack-init.sh:/etc/localstack/init/ready.d/10-create-queues.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name wallet-events.fifo >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 10s

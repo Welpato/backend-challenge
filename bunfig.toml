@@ -1,0 +1,6 @@
+# reflect-metadata precisa ser carregado antes de qualquer módulo do NestJS.
+# O preload cobre `bun run`/`bun src/main.ts`; a seção [test] cobre `bun test`.
+preload = ["reflect-metadata"]
+
+[test]
+preload = ["reflect-metadata"]
