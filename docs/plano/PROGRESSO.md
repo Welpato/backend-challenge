@@ -8,7 +8,7 @@ Atualizado pelo agente ao final de cada fase. Fonte para o `ARCHITECTURE.md` na 
 |---|---|---|---|
 | F00 Spike e esqueleto | ✅ concluída | 2026-10-07 | Go para MikroORM sob Bun. Critérios validados com PostgreSQL 16 nativo; `docker compose` falta validar no Mac (ver registro) |
 | F01 Infraestrutura | ✅ concluída | 2026-10-07 | Código e testes verdes com PG 16 nativo + emulador SQS (moto). `docker compose`/LocalStack/nginx/imagem falta validar no Mac (ver registro) |
-| F02 Shared kernel | ⬜ pendente | | |
+| F02 Shared kernel | ✅ concluída | 2026-10-07 | `Money` (bigint de centavos), `FailureCode` + metadados, JSON canônico, SHA-256, `Clock`. 103 testes novos |
 | F03 Wallet / Ledger | ⬜ pendente | | |
 | F04 WagerTransaction / ReversalPolicy | ⬜ pendente | | |
 | F05 Eventos / Inbox / Outbox | ⬜ pendente | | |
@@ -51,6 +51,14 @@ Legenda: ⬜ pendente · 🟨 em andamento · ✅ concluída · ⛔ bloqueada
 - [F01] **Compose**: projeto `jungle-wagering` (volume novo → o init de roles roda); imagem única `jungle-wagering:local` (`oven/bun:1`, multi-stage, `--production`, usuário `bun`); 3 réplicas de `api`, `consumer`, `outbox` e `reprocessor` (env `*_REPLICAS`); healthchecks via `scripts/healthcheck.ts` (a imagem do Bun não tem curl); nginx 1.29 com `server api:3000 resolve` (re-resolve o DNS do Docker, distribui entre as réplicas) e `proxy_next_upstream error timeout` (nunca repete POST). `migrate` é one-shot (`service_completed_successfully`).
 - [F01] **Infra de teste**: `docker-compose.test.yml` (projeto `jungle-wagering-test`, PG em `:5433` com tmpfs e fsync off, LocalStack em `:4567`, mesmos scripts de init). `.env.test` (versionado, sem segredos) é carregado pelo `bun test`; `test:integration` roda `scripts/wait-for-infra.ts` antes. O spike da F00 passou a usar essa infra.
 - [F01] **Biome**: `complexity/noStaticOnlyClass` desligada — `static forRoot()` em módulos é o padrão de módulos dinâmicos do Nest.
+- [F02] **`Money` guarda `bigint` de centavos em propriedade TS `private readonly cents`** (não `#cents`): campos `#` são ignorados pelo `toEqual` do `bun:test`, e dois `Money` de valores diferentes passariam como iguais em testes futuros. A instância é `Object.freeze`. Parse via regex + `split('.')` + `BigInt`; formatação via `bigint` `/`/`%` + `padStart`. Nenhum `number` no fluxo.
+- [F02] **Resultados de operação limitados a `NUMERIC(20,2)`** (|valor| ≤ 999999999999999999.99): `fromCents` lança `InvalidMoneyError` se estourar, em vez de deixar o erro aparecer só no INSERT. Negativos continuam permitidos (`subtract`, `negate`); `negate()` de zero continua zero (`"0.00"`, não `"-0.00"`).
+- [F02] **`from` também rejeita `props` que não seja objeto, `amount` que não seja string (number, bigint) e moeda ausente**; mensagens de erro em inglês e **sem ecoar o valor recebido** (logs/respostas não carregam dinheiro).
+- [F02] **Códigos dos erros de `Money`**: `InvalidMoneyError` → `VALIDATION_ERROR` (contrato); `CurrencyMismatchError` → `CURRENCY_MISMATCH` (expõe `expected`/`actual`). `DomainError` é abstrata, com `code: FailureCode | string` e `name` = nome da subclasse.
+- [F02] **`FailureCode`** é um objeto `as const` + tipo homônimo; `failureCodeMetadata(code)` devolve `{ class, retryable, persisted }` congelado, com `class ∈ business|contract|conflict|not_found|transient|infrastructure` e `persisted ∈ 'REJECTED'|'FAILED'|null`. Só `TRANSIENT_UNAVAILABLE` é `retryable` (reenviar a mesma operação com a mesma key). `isFailureCode` para validar strings vindas do banco/de fora.
+- [F02] **JSON canônico**: chaves ordenadas por code unit UTF-16 (`Array#sort`, mesma regra do RFC 8785), sem espaços, propriedades `undefined` omitidas, objetos com `toJSON()` (ex.: `Money`, `Date`) serializados pelo resultado. Rejeitados (`CanonicalJsonError`): number não inteiro ou fora do intervalo seguro, `NaN`/`Infinity`, `bigint`, função, símbolo, `undefined` no topo ou **dentro de array** (sem representação sem ambiguidade), instâncias não simples sem `toJSON` (ex.: `Map`) e ciclos. O mesmo objeto repetido sem ciclo é aceito.
+- [F02] **`sha256Hex` via `node:crypto`** (`createHash`, UTF-8, hex minúsculo) — funciona no Bun e não amarra o shared kernel ao global `Bun`.
+- [F02] **`FixedClock`** (em `src/shared/clock.ts`, como pede a fase) aceita `Date | string`, devolve cópias, tem `set`/`advance(ms)` e rejeita datas inválidas. Não foi criado token de DI para `Clock`; quem precisar injetar (F07+) cria o token.
 
 ## Bloqueios / dúvidas
 
@@ -116,3 +124,16 @@ Legenda: ⬜ pendente · 🟨 em andamento · ✅ concluída · ⛔ bloqueada
   - F11/F12/F10: registrar os workers em `ROLE_MODULES` (`src/app.module.ts`); `SHUTDOWN_GRACE_MS`, `SQS_*`, `OUTBOX_POLL_INTERVAL_MS`, `REPROCESSOR_INTERVAL_MS`, `PENDING_REFERENCE_*` e `FAULT_EXIT_AFTER_COMMIT` já estão no schema de config.
   - F14: métricas de negócio no `Registry` exportado pelo `MetricsModule`; o filtro de log em `debug` para `/health` e `/metrics` está em `logger.module.ts`.
   - `src/shared/ids.ts` só tem `newUuidV7()`; a F02 completa o módulo se precisar.
+
+### F02 — Shared kernel
+- Arquivos criados: `src/shared/failure-code.ts`, `src/shared/errors/domain-error.ts`, `src/shared/money/{money-props,money,money.errors}.ts`, `src/shared/canonical-json.ts`, `src/shared/hashing.ts`, `src/shared/clock.ts`, `test/unit/shared/money/money.test.ts`, `test/unit/shared/{failure-code,canonical-json,hashing,clock,ids}.test.ts`. `src/shared/ids.ts` já atendia (UUID v7) e não mudou — ganhou teste.
+- Resultado dos critérios de aceite:
+  - `bun test test/unit/shared` → 111 pass / 0 fail (Money: válidos, 19 entradas inválidas + number/bigint/null, moedas inválidas, `0.10 + 0.20 == 0.30`, 1.000.000 × `0.01` = `10000.00`, limite de 18 dígitos, negativos, imutabilidade/`Object.isFrozen`, BRL × USD em `add`/`subtract`/`isLessThan`/`equals`; FailureCode; JSON canônico; hash com vetores conhecidos; clock; ids).
+  - `bun run typecheck` → limpo; `bun run lint` → `Checked 54 files … No fixes applied`.
+  - `grep -rnE "parseFloat|Number\(|toFixed|: number" src/shared/money …` → `ok`.
+  - Fases anteriores: `bun test test/unit` → 124 pass / 0 fail; `bun run test:integration` → 16 pass / 0 fail (PG 16 nativo em :5433 com `docker/postgres-init.sql` + `moto` em :4567 com `docker/localstack-init.sh`, mesmo arranjo da F01).
+- Pendências para as próximas fases:
+  - F03/F04: `InsufficientFundsError`, `InvalidTransactionStateError` etc. devem estender `DomainError` com o `FailureCode` correspondente (ou string para erros de programação).
+  - F08: `WALLET_ALREADY_EXISTS` (409, §5 `CreateWallet`) não está na tabela §3.8 e por isso não entrou no catálogo `FailureCode`; a F08 decide se o adiciona ao catálogo (classe `conflict`, não persistido) ou usa como string no `DomainError`.
+  - F08/F12: entrada monetária dos DTOs/envelopes deve passar por `Money.from` (já rejeita negativos); `toJSON()` de um `Money` negativo devolve `amount` com sinal — só pode aparecer em saídas internas (ex.: `difference` da reconciliação), nunca em contrato de entrada.
+  - F09: `payload-hash.ts` = `sha256Hex(canonicalJson({...}))` com os campos de §6; passar `money` como `MoneyProps` (ou o próprio `Money`, que serializa via `toJSON`) e deixar `referenceExternalTransactionId` como `undefined` quando ausente (é omitido). Nunca passar `null` para opcionais — `null` entra no hash.
