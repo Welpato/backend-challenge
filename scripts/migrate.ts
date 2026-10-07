@@ -41,7 +41,9 @@ function normalizeGeneratedMigration(fileName: string): void {
 }
 
 async function run(command: Command, name: string | undefined): Promise<void> {
-  const orm = await MikroORM.init(buildMikroOrmConfig({ clientUrl: loadConfig().database.url }));
+  // DDL roda como `migrator` (MIGRATION_DATABASE_URL); sem ela, DATABASE_URL (o job do Compose já aponta para o migrator).
+  const { database } = loadConfig();
+  const orm = await MikroORM.init(buildMikroOrmConfig({ clientUrl: database.migrationUrl ?? database.url }));
   try {
     const migrator = orm.migrator;
     switch (command) {

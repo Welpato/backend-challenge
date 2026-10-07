@@ -23,7 +23,7 @@ describe('loadConfig', () => {
     expect(config.port).toBe(3000);
     expect(config.logLevel).toBe('info');
     expect(config.instanceId.length).toBeGreaterThan(0);
-    expect(config.database).toEqual({ url: BASE_ENV.DATABASE_URL, lockTimeoutMs: 3000 });
+    expect(config.database).toStrictEqual({ url: BASE_ENV.DATABASE_URL, migrationUrl: undefined, lockTimeoutMs: 3000 });
     expect(config.sqs.endpoint).toBeUndefined();
     expect(config.sqs.region).toBe('us-east-1');
     expect(config.sqs.queues).toEqual({
@@ -69,6 +69,17 @@ describe('loadConfig', () => {
     expect(config.sqs.endpoint).toBeUndefined();
     expect(config.role).toBe('all');
     expect(config.port).toBe(3000);
+  });
+
+  it('reads the optional migrator connection separately from the app connection', () => {
+    const migrationUrl = 'postgresql://migrator:migrator@localhost:5432/wagering';
+    const config = loadConfig({ ...BASE_ENV, MIGRATION_DATABASE_URL: migrationUrl });
+
+    expect(config.database.url).toBe(BASE_ENV.DATABASE_URL);
+    expect(config.database.migrationUrl).toBe(migrationUrl);
+    expect(issuesOf({ ...BASE_ENV, MIGRATION_DATABASE_URL: 'mysql://x@localhost/db' })).toEqual([
+      'MIGRATION_DATABASE_URL: must be a postgres:// or postgresql:// URL',
+    ]);
   });
 
   it('requires DATABASE_URL with a postgres scheme', () => {

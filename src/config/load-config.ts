@@ -29,6 +29,7 @@ function toAppConfig(env: ParsedEnv): AppConfig {
     logLevel: env.LOG_LEVEL,
     database: {
       url: env.DATABASE_URL,
+      migrationUrl: env.MIGRATION_DATABASE_URL,
       lockTimeoutMs: env.DB_LOCK_TIMEOUT_MS,
     },
     sqs: {

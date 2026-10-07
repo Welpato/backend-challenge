@@ -47,13 +47,15 @@ Bun 1.x (runtime, package manager e test runner — `bun test`), TypeScript `str
 docker compose up -d --build                # F01: postgres, localstack, migrate, 3× api + nginx (:8080), workers
 docker compose -f docker-compose.test.yml up -d   # infra de teste (PG :5433 em tmpfs, LocalStack :4567) = bun run infra:test:up
 bun install
-bun run migrate:up                          # aplica migrations (scripts/migrate.ts, não a CLI do MikroORM)
+bun run migrate:up                          # aplica migrations como migrator (MIGRATION_DATABASE_URL; sem ela, DATABASE_URL)
 bun run migrate:down                        # desfaz a última migration
 bun run migrate:create <nome>               # gera migrations/NNNN_<nome>.ts (numeração sequencial)
 bun run dev                                 # app local com watch (lê .env — copie de .env.example)
 bun run start                               # app sem watch (bun src/main.ts — execução direta, sem build)
 bun test test/unit                          # testes de unidade (= bun run test:unit)
-bun run test:integration                    # espera a infra de teste (scripts/wait-for-infra.ts) e roda test/integration
+bun run test:integration                    # espera a infra de teste, aplica migrations como migrator e roda test/integration
+bun run test:integration -- <caminho>       # idem, só para um diretório/arquivo (ex.: test/integration/schema)
+bun run test:integration:up                 # sobe a infra de teste (docker-compose.test.yml) e roda o anterior
 bun run test:concurrency                    # concorrência multi-processo (a partir da F13)
 bun run typecheck && bun run lint           # tsc --noEmit + Biome (bun run lint:fix corrige formatação)
 ```

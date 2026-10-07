@@ -36,7 +36,7 @@ function fifoQueueName(defaultValue: string) {
 
 /**
  * Schema das variáveis de ambiente. Variáveis vazias são tratadas como ausentes
- * (o Compose costuma repassar `VAR=` vazio). `DATABASE_URL` é a única obrigatória;
+ * (o Compose costuma repassar `VAR=` vazio). `DATABASE_URL` (role `app`) é a única obrigatória;
  * o resto tem default de desenvolvimento. Credenciais AWS ficam fora do schema:
  * o SDK as lê da cadeia padrão (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`).
  */
@@ -47,6 +47,10 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
 
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, error: 'must be a postgres:// or postgresql:// URL' }),
+  /** Conexão do DDL (role `migrator`). Ausente = `DATABASE_URL` (ex.: job `migrate` do Compose). */
+  MIGRATION_DATABASE_URL: z
+    .url({ protocol: /^postgres(ql)?$/, error: 'must be a postgres:// or postgresql:// URL' })
+    .optional(),
   DB_LOCK_TIMEOUT_MS: intSetting(3000, 1, 60_000),
 
   SQS_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),

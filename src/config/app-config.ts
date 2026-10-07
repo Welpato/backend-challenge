@@ -12,7 +12,10 @@ export interface AppConfig {
   readonly instanceId: string;
   readonly logLevel: LogLevel;
   readonly database: {
+    /** Conexão da aplicação (role `app`, só DML). */
     readonly url: string;
+    /** Conexão das migrations (role `migrator`, DDL); `undefined` = usar `url`. Só o `scripts/migrate.ts` lê. */
+    readonly migrationUrl: string | undefined;
     readonly lockTimeoutMs: number;
   };
   readonly sqs: {
