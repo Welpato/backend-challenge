@@ -1,3 +1,6 @@
+/** Token de injeção do `Clock` (provido como `SystemClock` pelo `DatabaseModule`; testes usam `FixedClock`). */
+export const CLOCK = Symbol('CLOCK');
+
 /**
  * Fonte de tempo injetável. O domínio recebe instantes como parâmetro; quem chama obtém de um `Clock`,
  * o que torna backoff, TTL e timestamps determinísticos nos testes (`FixedClock`).

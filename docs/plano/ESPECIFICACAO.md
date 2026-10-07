@@ -21,10 +21,10 @@ Invariantes globais: nunca duplicar crédito ou débito, nunca perder evento con
 | Tema | Decisão | Justificativa (vai para o ARCHITECTURE.md) |
 |---|---|---|
 | Autenticação | **Não implementada.** `ProviderIdentityPort` + `NoopProviderAuthGuard` nos endpoints de provedor; health aberto; SQS é canal interno confiável, mas `providerId` continua validado pelo domínio. Documentar desenho com Keycloak (client-credentials por provedor, claim `azp` → `providerId`) | Vale 0 ponto; o enunciado aceita explicitamente |
-| ORM | **MikroORM** com `em.transactional()` + `LockMode.PESSIMISTIC_WRITE`. *Records* do ORM ficam na infraestrutura e são convertidos para o domínio via `rehydrate` | Domínio sem tipos de ORM/Nest; é o ORM preferencial |
+| ORM | **MikroORM** com `em.transactional()` + lock pessimista de escrita da wallet (`SELECT … FOR NO KEY UPDATE` explícito — ver Concorrência; `LockMode.PESSIMISTIC_PARTIAL_WRITE` = `SKIP LOCKED` nos workers). *Records* do ORM ficam na infraestrutura e são convertidos para o domínio via `rehydrate` | Domínio sem tipos de ORM/Nest; é o ORM preferencial |
 | Money no código | `Money` encapsula **`bigint` de centavos** + moeda. Parse estrito `^(0|[1-9]\d{0,17})\.\d{2}$` | Exato; nunca há arredondamento — o que exigiria arredondar é rejeitado |
 | Money no banco | `amount NUMERIC(20,2)` + `currency CHAR(3)`, lidos como string (o driver `pg` devolve numeric como string); tipo customizado MikroORM → `Money.from` | Representação exata em colunas separadas, permitido pelo enunciado |
-| Concorrência | **Lock pessimista por wallet** (`SELECT … FOR UPDATE`), `READ COMMITTED`, `lock_timeout` ≈ 3s. `version` incrementada e conferida no `UPDATE … WHERE version = :expected` como guarda extra | Unidade de concorrência = `walletId`; hot wallets serializam sem tempestade de retries (optimistic degrada em hot wallet); wallets diferentes em paralelo; sem lock global |
+| Concorrência | **Lock pessimista por wallet** (`SELECT … FOR NO KEY UPDATE` — *F07, 2026-10-07*: `FOR UPDATE` conflita com o `FOR KEY SHARE` que a FK `wallet_id` toma no INSERT da transação feito antes do lock e gerava deadlock entre duas operações da mesma wallet; `FOR NO KEY UPDATE` continua exclusivo entre escritores), `READ COMMITTED`, `lock_timeout` ≈ 3s. `version` incrementada e conferida no `UPDATE … WHERE version = :expected` como guarda extra | Unidade de concorrência = `walletId`; hot wallets serializam sem tempestade de retries (optimistic degrada em hot wallet); wallets diferentes em paralelo; sem lock global |
 | Ordem de locks | Insert da própria linha de idempotência → **lock da wallet** → leituras de transações relacionadas. Toda mutação de algo da wallet acontece sob o lock dela; nunca `FOR UPDATE` em outras linhas de transação | Evita deadlock entre processamento normal, reversões e reprocessador |
 | Idempotência | `UNIQUE (idempotency_key)` (o header é a fonte da verdade) + `UNIQUE (provider_id, external_transaction_id)` + `payload_hash`. Insert com `ON CONFLICT DO NOTHING`; duplicatas concorrentes bloqueiam no índice único até o vencedor commitar e então leem a linha | Persistente e multi-instância: 50 apostas idênticas em paralelo → 1 débito e 49 replays |
 | Resultado do replay | Persistir snapshot `balance_after_amount` + `balance_after_currency` (moeda **da wallet**) em toda transação finalizada (inclusive LOSS/REJECTED; em `CURRENCY_MISMATCH` a moeda difere da transação) | Regra 7.7: replay devolve o resultado original, **inclusive o saldo observado naquele momento** |
@@ -204,7 +204,7 @@ em.transactional (READ COMMITTED, lock_timeout 3s):
         conflito → carrega por idempotency_key (ou provider + externalId)
             hash diferente → IDEMPOTENCY_CONFLICT (ou EXTERNAL_ID_CONFLICT)
             igual → devolve resultado armazenado, idempotentReplay = true
- 3. wallet = SELECT FOR UPDATE                  -- inexistente → WALLET_NOT_FOUND (rollback)
+ 3. wallet = SELECT FOR NO KEY UPDATE           -- inexistente → WALLET_NOT_FOUND (rollback)
     confere player/moeda → REJECTED
  4. despacho por kind (BET/WIN/LOSS/REFUND/ROLLBACK) → ReversalPolicy para referências
  5. se o saldo muda: entry = wallet.debit|credit(...)

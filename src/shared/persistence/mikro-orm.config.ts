@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { Migrator } from '@mikro-orm/migrations';
 import { defineConfig, type Options } from '@mikro-orm/postgresql';
+import { type GuardablePool, guardPoolAgainstOrphanedClients } from './pool-guard';
 
 const MIGRATIONS_DIR = 'migrations';
 const MIGRATION_PREFIX = /^(\d{4})_/;
@@ -9,6 +10,8 @@ export interface MikroOrmConfigInput {
   /** Vem do schema de env validado (`loadConfig().database.url`). */
   clientUrl: string;
   entities?: NonNullable<Options['entities']>;
+  /** Pool de conexões (default do MikroORM se ausente). Testes de concorrência aumentam o `max`. */
+  pool?: NonNullable<Options['pool']>;
 }
 
 /**
@@ -18,14 +21,18 @@ export interface MikroOrmConfigInput {
  *   nem de `emitDecoratorMetadata` para o ORM, o que evita surpresas do transpiler do Bun.
  * - `forceUtcTimezone`: datas sempre gravadas/lidas em UTC.
  * - Migrations em `migrations/*.ts`, executadas via `scripts/migrate.ts` (Bun importa `.ts` direto).
+ * - `driverOptions.onPoolCreated` instala o `pool-guard` (conexão perdida em transação não vaza do pool).
  * - `clientUrl` é obrigatório e vem do schema de env validado (zod) — sem leitura direta de `process.env`.
  */
 export function buildMikroOrmConfig(input: MikroOrmConfigInput): Options {
   return defineConfig({
     clientUrl: input.clientUrl,
     entities: input.entities ?? [],
+    ...(input.pool === undefined ? {} : { pool: input.pool }),
     discovery: { warnWhenNoEntities: false },
     forceUtcTimezone: true,
+    // Devolve ao pool clients cuja conexão caiu no meio de uma transação (ver pool-guard.ts).
+    driverOptions: { onPoolCreated: (pool: GuardablePool) => guardPoolAgainstOrphanedClients(pool) },
     preferTs: true,
     extensions: [Migrator],
     migrations: {

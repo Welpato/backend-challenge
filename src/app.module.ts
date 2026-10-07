@@ -4,6 +4,7 @@ import { ConfigModule } from '@/config/config.module';
 import type { AppRole } from '@/config/env.schema';
 import { HealthModule } from '@/health/health.module';
 import { SqsModule } from '@/messaging/sqs/sqs.module';
+import { PERSISTENCE_RECORDS } from '@/persistence-records';
 import { AppLoggerModule } from '@/shared/observability/logger.module';
 import { MetricsModule } from '@/shared/observability/metrics.module';
 import { DatabaseModule } from '@/shared/persistence/database.module';
@@ -35,7 +36,7 @@ export class AppModule {
       imports: [
         ConfigModule.forRoot(config),
         AppLoggerModule.forRoot(config),
-        DatabaseModule,
+        DatabaseModule.forRoot({ entities: [...PERSISTENCE_RECORDS] }),
         SqsModule,
         MetricsModule,
         HealthModule,
