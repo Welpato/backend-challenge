@@ -1,5 +1,6 @@
-import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '@/config/app-config';
+import { PassthroughHttpException } from '@/shared/http/api-error';
 import { type ReadinessReport, ReadinessService } from './readiness.service';
 
 export interface LivenessStatus {
@@ -21,12 +22,15 @@ export class HealthController {
     return { status: 'ok', instanceId: this.config.instanceId, role: this.config.role };
   }
 
-  /** Readiness: PostgreSQL + SQS; 503 com o relatório se algo falhar ou se estiver em shutdown. */
+  /**
+   * Readiness: PostgreSQL + SQS; 503 com o relatório se algo falhar ou se estiver em shutdown. O corpo é o
+   * próprio relatório (não o envelope de erro da API): `PassthroughHttpException` passa direto pelo filtro global.
+   */
   @Get('ready')
   async ready(): Promise<ReadinessReport> {
     const report = await this.readiness.check();
     if (report.status !== 'ok') {
-      throw new ServiceUnavailableException(report);
+      throw new PassthroughHttpException(report, 503);
     }
     return report;
   }

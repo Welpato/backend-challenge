@@ -10,6 +10,8 @@ export interface UnitOfWorkOptions {
   readonly isolation?: TransactionIsolation;
   /** Default: `DB_LOCK_TIMEOUT_MS` (3s). Aplicado com `SET LOCAL lock_timeout` — vale só nesta transação. */
   readonly lockTimeoutMs?: number;
+  /** `true` = transação `READ ONLY` (o PostgreSQL rejeita qualquer escrita). Ex.: reconciliação. */
+  readonly readOnly?: boolean;
 }
 
 export interface UnitOfWorkDefaults {
@@ -59,7 +61,7 @@ export class UnitOfWork {
           await em.execute('select set_config(?, ?, true)', ['lock_timeout', `${lockTimeoutMs}ms`]);
           return this.scope.run(em, () => work(em));
         },
-        { isolationLevel: options.isolation ?? 'read committed' },
+        { isolationLevel: options.isolation ?? 'read committed', readOnly: options.readOnly === true },
       );
     } catch (error: unknown) {
       throw classifyPgError(error) ?? error;

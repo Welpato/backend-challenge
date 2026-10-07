@@ -27,6 +27,7 @@ describe('FailureCode', () => {
         'REVERSAL_INSUFFICIENT_FUNDS',
         'TRANSIENT_UNAVAILABLE',
         'VALIDATION_ERROR',
+        'WALLET_ALREADY_EXISTS',
         'WALLET_NOT_FOUND',
         'WALLET_PLAYER_MISMATCH',
       ].sort(),
@@ -54,6 +55,7 @@ describe('FailureCode', () => {
       [FailureCode.KIND_NOT_ALLOWED, 'contract'],
       [FailureCode.IDEMPOTENCY_CONFLICT, 'conflict'],
       [FailureCode.EXTERNAL_ID_CONFLICT, 'conflict'],
+      [FailureCode.WALLET_ALREADY_EXISTS, 'conflict'],
       [FailureCode.WALLET_NOT_FOUND, 'not_found'],
     ];
     for (const [code, failureClass] of expectations) {

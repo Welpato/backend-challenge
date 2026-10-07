@@ -23,6 +23,7 @@ export const FailureCode = {
   IDEMPOTENCY_CONFLICT: 'IDEMPOTENCY_CONFLICT',
   EXTERNAL_ID_CONFLICT: 'EXTERNAL_ID_CONFLICT',
   WALLET_NOT_FOUND: 'WALLET_NOT_FOUND',
+  WALLET_ALREADY_EXISTS: 'WALLET_ALREADY_EXISTS',
   TRANSIENT_UNAVAILABLE: 'TRANSIENT_UNAVAILABLE',
   PROCESSING_FAILED: 'PROCESSING_FAILED',
 } as const;
@@ -67,6 +68,8 @@ const METADATA: Readonly<Record<FailureCode, FailureCodeMetadata>> = Object.free
   EXTERNAL_ID_CONFLICT: conflict,
   // Sem wallet não há alvo para a FK de wager_transactions: nada é persistido.
   WALLET_NOT_FOUND: meta('not_found', false, null),
+  // `CreateWallet` (§5): `(player_id, currency)` já existe. Não está na tabela §3.8; entrou no catálogo na F08.
+  WALLET_ALREADY_EXISTS: conflict,
   // Única falha em que o provedor deve reenviar a mesma operação com a mesma key.
   TRANSIENT_UNAVAILABLE: meta('transient', true, null),
   // Só para transações já persistidas cujas tentativas de infraestrutura se esgotaram.

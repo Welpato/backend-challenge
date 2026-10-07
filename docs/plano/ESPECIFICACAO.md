@@ -105,6 +105,7 @@ Validação da referência: resolvida por `(providerId, referenceExternalTransac
 | `VALIDATION_ERROR`, `MISSING_IDEMPOTENCY_KEY`, `KIND_NOT_ALLOWED` | contrato | não | corrigir payload |
 | `IDEMPOTENCY_CONFLICT`, `EXTERNAL_ID_CONFLICT` | conflito | não | nova key / corrigir payload |
 | `WALLET_NOT_FOUND` | não encontrado | não (sem FK) | corrigir payload |
+| `WALLET_ALREADY_EXISTS` | conflito | não | usar a wallet existente *(F08: `CreateWallet`, §5)* |
 | `TRANSIENT_UNAVAILABLE` | transitório | não | reenviar com a mesma key |
 | `PROCESSING_FAILED` | infra permanente | FAILED | investigação operacional |
 

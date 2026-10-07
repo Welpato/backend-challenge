@@ -24,3 +24,17 @@ export class InvalidWalletOperationError extends DomainError {
     super('INVALID_WALLET_OPERATION', message);
   }
 }
+
+/** Wallet inexistente (consultas, reconciliação e, a partir da F09, transações). Nada é persistido. */
+export class WalletNotFoundError extends DomainError {
+  constructor(readonly walletId: string) {
+    super(FailureCode.WALLET_NOT_FOUND, 'Wallet not found');
+  }
+}
+
+/** Já existe wallet para o mesmo `playerId` + moeda (`uq_wallets_player_currency`). */
+export class WalletAlreadyExistsError extends DomainError {
+  constructor(options?: ErrorOptions) {
+    super(FailureCode.WALLET_ALREADY_EXISTS, 'A wallet already exists for this player and currency', options);
+  }
+}
