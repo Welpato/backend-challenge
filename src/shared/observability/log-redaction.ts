@@ -26,6 +26,11 @@ const SENSITIVE_KEYS = [
   'body',
   'Body',
   'MessageBody',
+  // Erros do PostgreSQL/driver: `detail` traz a linha recusada ("Failing row contains (…, 25.00, …)") e os
+  // parâmetros da consulta podem conter valores. Só aparecem em caminhos de erro, mas o log continua sem dinheiro.
+  'detail',
+  'params',
+  'parameters',
 ] as const;
 
 const NESTING_PREFIXES = ['', '*.', '*.*.'] as const;

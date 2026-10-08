@@ -19,7 +19,8 @@ interface InvariantRow {
  * Invariante financeira de cada wallet (ESPECIFICACAO.md §11 — todo teste de integração/concorrência
  * termina com ela), calculada no próprio PostgreSQL sobre `NUMERIC` (sem `number`):
  * - `wallet.balance == Σ créditos − Σ débitos` do ledger;
- * - versões do ledger contíguas `1..n` e a última igual a `wallet.version` (sem lançamentos: saldo 0);
+ * - versões do ledger contíguas a partir de 1 (aberta com saldo) ou 2 (aberta com 0.00 — a 1ª movimentação leva a
+ *   wallet à versão 2) e a última igual a `wallet.version` (sem lançamentos: saldo 0);
  * - `balance_before` de cada lançamento = `balance_after` do anterior (0 no primeiro), aritmética certa;
  * - nenhum saldo negativo;
  * - e, se `baseUrl` for informado, a reconciliação da API responde `consistent: true`.
@@ -67,8 +68,8 @@ export async function assertLedgerInvariant(
     if (row.entries === 0) {
       expect(row.balance, context).toBe('0.00');
     } else {
-      expect(row.min_version, context).toBe(1);
-      expect(row.max_version, context).toBe(row.entries);
+      expect([1, 2], context).toContain(row.min_version as number);
+      expect((row.max_version as number) - (row.min_version as number) + 1, context).toBe(row.entries);
       expect(row.max_version, context).toBe(row.version);
       expect(row.last_balance_after, context).toBe(row.balance);
     }

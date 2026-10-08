@@ -44,7 +44,7 @@ Bun 1.x (runtime, package manager e test runner — `bun test`), TypeScript `str
 ## Comandos (mantidos atualizados pelas fases)
 
 ```bash
-docker compose up -d --build                # F01: postgres, localstack, migrate, 3× api + nginx (:8080), workers
+docker compose up -d --build                # F01: postgres, localstack, migrate, 3× api + nginx (host :8082 → 8080 no container), workers
 docker compose -f docker-compose.test.yml up -d   # infra de teste (PG :5433 em tmpfs, LocalStack :4567) = bun run infra:test:up
 bun install
 bun run migrate:up                          # aplica migrations como migrator (MIGRATION_DATABASE_URL; sem ela, DATABASE_URL)
@@ -58,6 +58,7 @@ bun run test:integration -- <caminho>       # idem, só para um diretório/arqui
 bun run test:integration:up                 # sobe a infra de teste (docker-compose.test.yml) e roda o anterior
 bun run test:concurrency                    # test/concurrency: single-process (F09/F10) + multi-instância com processos reais (F13), ~2 min; aceita -- <caminho>
 bun scripts/send-message.ts --wallet <id> --player <id> [--kind BET --amount 25.00 --count 2 …]   # F12: publica na wager-transactions.fifo
+bun run test:load                           # F16: teste de carga contra a stack do compose (LOAD_TARGET=local sobe as réplicas sozinho); ver LOAD_TEST.md
 bun run typecheck && bun run lint           # tsc --noEmit + Biome (bun run lint:fix corrige formatação)
 ```
 

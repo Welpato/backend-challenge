@@ -111,6 +111,41 @@ describe('POST /wallets/:walletId/reconciliation', () => {
     });
   });
 
+  it('reports a wallet opened with 0.00 and then credited as consistent (first entry is version 2)', async () => {
+    const created = await createWallet(running.baseUrl, { playerId: `zero-${crypto.randomUUID()}`, currency: 'BRL' });
+    expect(created.status).toBe(201);
+    const submitted = await fetch(`${running.baseUrl}/wagering/transactions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'idempotency-key': 'provider-a:zero-win-1' },
+      body: JSON.stringify({
+        providerId: 'provider-a',
+        externalTransactionId: 'zero-win-1',
+        playerId: created.body.playerId,
+        walletId: created.body.id,
+        roundId: 'round-1',
+        gameId: 'fortune-chimp',
+        kind: 'WIN',
+        money: { amount: '10.00', currency: 'BRL' },
+      }),
+    });
+    expect(submitted.status).toBe(201);
+    await debit(created.body.id, ['4.00']);
+    const metricBefore = await metricValue(running.baseUrl, RECONCILIATION_MISMATCHES_METRIC);
+
+    const response = await reconcile(created.body.id);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      walletId: created.body.id,
+      storedBalance: { amount: '6.00', currency: 'BRL' },
+      calculatedBalance: { amount: '6.00', currency: 'BRL' },
+      difference: { amount: '0.00', currency: 'BRL' },
+      consistent: true,
+      checkedEntries: 2,
+    });
+    expect(await metricValue(running.baseUrl, RECONCILIATION_MISMATCHES_METRIC)).toBe(metricBefore);
+  });
+
   it('flags a forced mismatch, counts it in the metric and never corrects the balance', async () => {
     const wallet = await openWallet('1000.00');
     await debit(wallet.id, ['25.00']);

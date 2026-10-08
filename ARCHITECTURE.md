@@ -25,7 +25,7 @@ Mapa para a avaliação (§14 do enunciado):
 
 ```mermaid
 flowchart LR
-  P[Provedores] -- HTTP --> N[nginx :8080<br/>round-robin]
+  P[Provedores] -- HTTP --> N[nginx :8082 no host<br/>round-robin]
   N --> A1[api 1]
   N --> A2[api 2]
   N --> A3[api 3]
@@ -292,8 +292,11 @@ Sucesso: 201 nova / 200 replay; 202 `PENDING_REFERENCE` (nova ou replay). O mape
 - **At-least-once**: se o publisher morre depois de publicar e antes do commit, os locks caem com a conexão e outro
   publica de novo — duplicata com o mesmo `eventId`, que o consumidor deduplica. Falha nunca descarta (backoff até
   5 min; alerta acima de 10 tentativas).
-- `aggregateId` de todos os eventos = `walletId`: a ordem entre `…Processed` e `WalletBalanceChanged` da mesma
-  wallet se mantém no FIFO.
+- `aggregateId` de todos os eventos = `walletId`: eventos da mesma wallet que saem **no mesmo lote** de um
+  publisher entram no FIFO na ordem de `occurred_at`. Entre lotes a ordem é **melhor esforço**: com vários
+  publishers (`SKIP LOCKED`) ou um reagendamento por falha, um evento mais novo da wallet pode ser publicado antes
+  de um mais antigo. O consumidor ordena por `data.walletVersion` (em `WalletBalanceChanged`) e deduplica por
+  `eventId` — não depende da ordem de chegada.
 
 ### O papel do FIFO
 
@@ -355,6 +358,9 @@ arbitrário), filas isoladas por teste.
 
 Tempos de referência (2 vCPU): unidade ~1 s, integração ~80 s, concorrência ~2 min (rodada 3× seguidas sem falha).
 
+Teste de carga (`bun run test:load`, diferencial): hot wallet, 1.000 wallets, tempestade de duplicatas e HTTP + fila,
+cada um fechando com reconciliação de todas as wallets — metodologia, números e análise em [LOAD_TEST.md](LOAD_TEST.md).
+
 ## 14. Trade-offs e limitações
 
 - **Throughput de hot wallet é limitado pela serialização**: operações da mesma wallet passam uma de cada vez pelo
@@ -367,13 +373,26 @@ Tempos de referência (2 vCPU): unidade ~1 s, integração ~80 s, concorrência 
   contábil com contrapartida (casa/jogador). Auditável e reconciliável, mas não é contabilidade completa.
 - **Sem autenticação** (ver §11).
 - **`FAILED` sem evento** e reprocessamento manual de DLQ não automatizado (as mensagens ficam com o motivo).
+- **Janela de indisponibilidade antes da DLQ**: no SQS, uma falha transitória (PostgreSQL fora, lock timeout) volta
+  com visibilidade de 1 s · 2^(recebimentos−1) e o redrive move a mensagem na 5ª entrega — uma indisponibilidade
+  maior que ~15–30 s leva mensagens **válidas** à DLQ (nada se perde nem duplica: o replay manual passa pela inbox e
+  pela idempotência). Para tolerar quedas maiores, aumente `maxReceiveCount` no `docker/localstack-init.sh` (e
+  `SQS_MAX_RECEIVE_COUNT`, que é só o espelho) e/ou `SQS_RETRY_BACKOFF_BASE_MS`. Mensagens movidas pelo redrive não
+  passam pelo consumidor e não entram em `sqs_dlq_messages_total` (só no log/`sqs_retries_total`); a profundidade
+  da DLQ se lê no próprio SQS (`ApproximateNumberOfMessages`).
+- **Imutabilidade do ledger contra o `app`, não contra o dono**: o trigger bloqueia `UPDATE`/`DELETE` de qualquer
+  role, mas `TRUNCATE` (que não dispara triggers de linha) continua possível para o dono das tabelas (`migrator`) —
+  como `DROP TABLE`. O `app` não tem esse privilégio. Os testes usam isso para limpar o banco.
 - **Fila de entrada só recebe**; a DLQ não tem consumidor nem tela — inspeção via AWS CLI.
 - **Pool de conexões no default do MikroORM (10 por processo)**; com 12 processos o PostgreSQL do Compose precisa de
   `max_connections=300` (configurado). Sem PgBouncer.
 - **Contadores por processo**: totais do sistema são somas no Prometheus; os gauges de banco só existem nos papéis
   que os coletam.
 - **LocalStack fixado em 4.14** (última versão sem token; as releases 2026.x pedem `LOCALSTACK_AUTH_TOKEN`).
-- Teste de carga ainda não feito (próxima fase).
+- **Outbox é o primeiro componente a ficar para trás sob carga sustentada** (teste de carga, [LOAD_TEST.md](LOAD_TEST.md)):
+  o publisher envia os blocos de 10 do lote em sequência; com ~450 eventos/s gerados o lag cresceu até ~90 s e
+  zerou sozinho depois, sem perda. É atraso de notificação, não de saldo. Hot wallet: 77 req/s com 50 em paralelo
+  na execução de referência (2 vCPU), p99 da espera de lock já perto do `lock_timeout`.
 
 ## 15. Interpretações adotadas
 
@@ -399,6 +418,11 @@ Pontos em que o enunciado deixa margem e a escolha feita:
     kind → escopo → valor → já revertida. `gameId` não faz parte do escopo (a regra 7.2 não o cita).
 16. `POST /wallets` sem saldo inicial abre com `0.00` e exige `currency`; com saldo, as moedas precisam bater.
 17. No SQS, erro inesperado é transitório (retry até o redrive), não DLQ imediata.
-18. `aggregateId` de todos os eventos é a `walletId` (ordem por wallet no FIFO); o id da transação vai em `data`.
+18. `aggregateId` de todos os eventos é a `walletId` (grupo FIFO por wallet; ordem garantida dentro do lote, melhor
+    esforço entre lotes — o consumidor usa `walletVersion`); o id da transação vai em `data`.
 19. Backoff com jitter **só para baixo** (o teto nunca é ultrapassado).
 20. A reconciliação é `POST` (como no enunciado), mas nunca escreve.
+21. Wallet aberta com `0.00` não tem lançamento de abertura: continua na versão 1 e a primeira movimentação gera o
+    lançamento de `walletVersion = 2` (a versão só muda com o saldo, §6.2). A reconciliação aceita a cadeia
+    começando em 1 (aberta com saldo) ou 2 (aberta com zero), sempre partindo de saldo 0. *(F17: antes exigia 1 e
+    marcava `VERSION_GAP` nesse caso — corrigido.)*

@@ -1,0 +1,379 @@
+{
+  "environment": {
+    "startedAt": "2026-10-08T15:55:44.775Z",
+    "target": "local",
+    "os": "Linux 6.18.44-fc-v80 x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpuCount": 2,
+    "memoryGb": 7.8,
+    "bun": "1.4.2",
+    "postgres": "PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "docker": null,
+    "replicas": {
+      "api": 3,
+      "consumer": 3,
+      "outbox": 3,
+      "reprocessor": 3
+    },
+    "sqsEndpoint": "http://localhost:4566",
+    "eventsSink": "purge",
+    "warmupSeconds": 5,
+    "durationSeconds": 30,
+    "seed": 20261008
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "hot-wallet",
+      "title": "Hot wallet: 1 wallet, concorrência 50, BET/WIN",
+      "concurrency": 50,
+      "wallets": 1,
+      "measuredSeconds": 30.6,
+      "http": {
+        "requests": 2365,
+        "throughputRps": 77.2,
+        "latencyMs": {
+          "count": 2365,
+          "p50": 575.6,
+          "p95": 1435.1,
+          "p99": 2104.4,
+          "max": 3618.3,
+          "mean": 640.5
+        },
+        "byCode": {
+          "201": 2365
+        },
+        "errorRate": 0,
+        "duplicatesSent": 0,
+        "replays": 0
+      },
+      "queue": null,
+      "server": {
+        "walletLockConflicts": {
+          "timeout": 0,
+          "deadlock": 0,
+          "version": 0
+        },
+        "walletLockWait": {
+          "count": 2365,
+          "meanMs": 354.3380025175475,
+          "p50Ms": 246.03242320819112,
+          "p95Ms": 1209.8880597014925,
+          "p99Ms": 2268.8432835820886
+        },
+        "processingHttp": {
+          "count": 2365,
+          "meanMs": 636.8801238169135,
+          "p50Ms": 593.9680957128614,
+          "p95Ms": 2040.625,
+          "p99Ms": 2434.7916666666665
+        },
+        "processingSqs": {
+          "count": 0,
+          "meanMs": null,
+          "p50Ms": null,
+          "p95Ms": null,
+          "p99Ms": null
+        },
+        "idempotentReplays": 0,
+        "inboxDuplicates": 0,
+        "sqsRetries": 0,
+        "dlqMessages": 0
+      },
+      "outbox": {
+        "maxLagSeconds": 7.42,
+        "lagAtLoadEndSeconds": 7.42,
+        "finalLagSeconds": 0,
+        "maxPending": 1002
+      },
+      "drain": {
+        "queueDrainSeconds": 0,
+        "outboxDrainSeconds": 6.06
+      },
+      "reconciliation": {
+        "wallets": 1,
+        "apiConsistent": 1,
+        "sqlViolations": 0,
+        "sentKeys": 2737,
+        "definitiveKeys": 2737,
+        "transactionRows": 2737,
+        "rowsWithUnknownKey": 0,
+        "processedBalanceOps": 2738,
+        "ledgerEntries": 2738,
+        "pending": 0,
+        "dlqNew": 0,
+        "consistent": true
+      }
+    },
+    {
+      "id": 2,
+      "name": "spread-wallets",
+      "title": "Wallets espalhadas: 1.000 wallets, concorrência 100, BET/WIN/LOSS/REFUND",
+      "concurrency": 100,
+      "wallets": 1000,
+      "measuredSeconds": 30.4,
+      "http": {
+        "requests": 7462,
+        "throughputRps": 245.7,
+        "latencyMs": {
+          "count": 7462,
+          "p50": 367.4,
+          "p95": 851.6,
+          "p99": 1283.5,
+          "max": 1505.4,
+          "mean": 404.5
+        },
+        "byCode": {
+          "201": 7462
+        },
+        "errorRate": 0,
+        "duplicatesSent": 0,
+        "replays": 0
+      },
+      "queue": null,
+      "server": {
+        "walletLockConflicts": {
+          "timeout": 0,
+          "deadlock": 0,
+          "version": 0
+        },
+        "walletLockWait": {
+          "count": 7462,
+          "meanMs": 11.513178709997241,
+          "p50Ms": 8.068132815868909,
+          "p95Ms": 39.14570230607965,
+          "p99Ms": 85.1461538461539
+        },
+        "processingHttp": {
+          "count": 7462,
+          "meanMs": 380.22290193902427,
+          "p50Ms": 358.0155497963717,
+          "p95Ms": 952.5806451612901,
+          "p99Ms": 1885.000000000001
+        },
+        "processingSqs": {
+          "count": 0,
+          "meanMs": null,
+          "p50Ms": null,
+          "p95Ms": null,
+          "p99Ms": null
+        },
+        "idempotentReplays": 0,
+        "inboxDuplicates": 0,
+        "sqsRetries": 0,
+        "dlqMessages": 0
+      },
+      "outbox": {
+        "maxLagSeconds": 75.33,
+        "lagAtLoadEndSeconds": 25.35,
+        "finalLagSeconds": 0,
+        "maxPending": 11611
+      },
+      "drain": {
+        "queueDrainSeconds": 0,
+        "outboxDrainSeconds": 75
+      },
+      "reconciliation": {
+        "wallets": 1000,
+        "apiConsistent": 1000,
+        "sqlViolations": 0,
+        "sentKeys": 8735,
+        "definitiveKeys": 8735,
+        "transactionRows": 8735,
+        "rowsWithUnknownKey": 0,
+        "processedBalanceOps": 8448,
+        "ledgerEntries": 8448,
+        "pending": 0,
+        "dlqNew": 0,
+        "consistent": true
+      }
+    },
+    {
+      "id": 3,
+      "name": "duplicate-storm",
+      "title": "Tempestade de duplicatas: 200 wallets, concorrência 100, 30% reenvios",
+      "concurrency": 100,
+      "wallets": 200,
+      "measuredSeconds": 30.3,
+      "http": {
+        "requests": 9198,
+        "throughputRps": 303.2,
+        "latencyMs": {
+          "count": 9198,
+          "p50": 249.4,
+          "p95": 815.4,
+          "p99": 922.1,
+          "max": 1047.2,
+          "mean": 327.6
+        },
+        "byCode": {
+          "201": 6444,
+          "200 replay": 2754
+        },
+        "errorRate": 0,
+        "duplicatesSent": 2754,
+        "replays": 2754
+      },
+      "queue": null,
+      "server": {
+        "walletLockConflicts": {
+          "timeout": 0,
+          "deadlock": 0,
+          "version": 0
+        },
+        "walletLockWait": {
+          "count": 6444,
+          "meanMs": 11.862260279485032,
+          "p50Ms": 7.174148188209844,
+          "p95Ms": 41.785714285714235,
+          "p99Ms": 106.39999999999873
+        },
+        "processingHttp": {
+          "count": 9198,
+          "meanMs": 305.37060460567545,
+          "p50Ms": 233.33333333333334,
+          "p95Ms": 895.9318181818184,
+          "p99Ms": 979.5500000000002
+        },
+        "processingSqs": {
+          "count": 0,
+          "meanMs": null,
+          "p50Ms": null,
+          "p95Ms": null,
+          "p99Ms": null
+        },
+        "idempotentReplays": 2754,
+        "inboxDuplicates": 0,
+        "sqsRetries": 0,
+        "dlqMessages": 0
+      },
+      "outbox": {
+        "maxLagSeconds": 68.38,
+        "lagAtLoadEndSeconds": 24.9,
+        "finalLagSeconds": 0,
+        "maxPending": 10600
+      },
+      "drain": {
+        "queueDrainSeconds": 0,
+        "outboxDrainSeconds": 68.47
+      },
+      "reconciliation": {
+        "wallets": 200,
+        "apiConsistent": 200,
+        "sqlViolations": 0,
+        "sentKeys": 7355,
+        "definitiveKeys": 7355,
+        "transactionRows": 7355,
+        "rowsWithUnknownKey": 0,
+        "processedBalanceOps": 7555,
+        "ledgerEntries": 7555,
+        "pending": 0,
+        "dlqNew": 0,
+        "consistent": true
+      }
+    },
+    {
+      "id": 4,
+      "name": "http-and-queue",
+      "title": "HTTP + fila: 500 wallets, concorrência 100, metade via SQS",
+      "concurrency": 100,
+      "wallets": 500,
+      "measuredSeconds": 31.3,
+      "http": {
+        "requests": 7106,
+        "throughputRps": 227.1,
+        "latencyMs": {
+          "count": 7106,
+          "p50": 191.9,
+          "p95": 489.6,
+          "p99": 613.9,
+          "max": 788.9,
+          "mean": 211.9
+        },
+        "byCode": {
+          "201": 7106
+        },
+        "errorRate": 0,
+        "duplicatesSent": 0,
+        "replays": 0
+      },
+      "queue": {
+        "sent": 693,
+        "sendErrors": 0,
+        "sendLatencyMs": {
+          "count": 693,
+          "p50": 2119.6,
+          "p95": 3473.3,
+          "p99": 3698.5,
+          "max": 4050.5,
+          "mean": 2187.3
+        },
+        "endToEndMs": {
+          "count": 693,
+          "p50": 8873,
+          "p95": 16896,
+          "p99": 17340,
+          "max": 18318,
+          "mean": 8920.3
+        },
+        "processedRps": 13.6
+      },
+      "server": {
+        "walletLockConflicts": {
+          "timeout": 0,
+          "deadlock": 0,
+          "version": 0
+        },
+        "walletLockWait": {
+          "count": 7799,
+          "meanMs": 11.50321117271423,
+          "p50Ms": 7.616722248689853,
+          "p95Ms": 41.04999999999996,
+          "p99Ms": 88.75312500000007
+        },
+        "processingHttp": {
+          "count": 7106,
+          "meanMs": 190.34922323979762,
+          "p50Ms": 172.49295207410393,
+          "p95Ms": 482.81857976653697,
+          "p99Ms": 833.9719626168215
+        },
+        "processingSqs": {
+          "count": 695,
+          "meanMs": 154.50172582014582,
+          "p50Ms": 97.5,
+          "p95Ms": 465.10416666666663,
+          "p99Ms": 806.9444444444431
+        },
+        "idempotentReplays": 0,
+        "inboxDuplicates": 2,
+        "sqsRetries": 0,
+        "dlqMessages": 0
+      },
+      "outbox": {
+        "maxLagSeconds": 90.84,
+        "lagAtLoadEndSeconds": 30.29,
+        "finalLagSeconds": 0,
+        "maxPending": 13789
+      },
+      "drain": {
+        "queueDrainSeconds": 19.55,
+        "outboxDrainSeconds": 93.5
+      },
+      "reconciliation": {
+        "wallets": 500,
+        "apiConsistent": 500,
+        "sqlViolations": 0,
+        "sentKeys": 9041,
+        "definitiveKeys": 9041,
+        "transactionRows": 9041,
+        "rowsWithUnknownKey": 0,
+        "processedBalanceOps": 8181,
+        "ledgerEntries": 8181,
+        "pending": 0,
+        "dlqNew": 0,
+        "consistent": true
+      }
+    }
+  ]
+}

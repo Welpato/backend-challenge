@@ -62,11 +62,15 @@ export const envSchema = z.object({
   SQS_WAGER_DLQ_NAME: fifoQueueName('wager-transactions-dlq.fifo'),
   SQS_EVENTS_QUEUE_NAME: fifoQueueName('wallet-events.fifo'),
   SQS_WAIT_TIME_SECONDS: intSetting(20, 0, 20),
+  /**
+   * Espelho dos atributos com que a fila é criada (`docker/localstack-init.sh`: visibilidade e `maxReceiveCount` do
+   * redrive). A app não altera a fila; quem muda o limite muda o script de init (as duas variáveis têm o mesmo nome).
+   */
   SQS_VISIBILITY_TIMEOUT_SECONDS: intSetting(30, 0, 43_200),
   SQS_MAX_RECEIVE_COUNT: intSetting(5, 1, 1000),
-  /** Backoff do consumidor em falha transitória: `ChangeMessageVisibility` = base·2^(recebimentos − 1), com teto. */
   /** Mensagens em processamento ao mesmo tempo por instância do consumidor (o long-poll só pede o que cabe). */
   SQS_CONSUMER_MAX_IN_FLIGHT: intSetting(50, 1, 1000),
+  /** Backoff do consumidor em falha transitória: `ChangeMessageVisibility` = base·2^(recebimentos − 1), com teto. */
   SQS_RETRY_BACKOFF_BASE_MS: intSetting(1000, 1, 60 * 60_000),
   SQS_RETRY_BACKOFF_MAX_MS: intSetting(5 * 60_000, 1000, 12 * 60 * 60_000),
 

@@ -3,3 +3,6 @@ dist/
 .env
 coverage/
 *.log
+
+# Saída do teste de carga (bun run test:load); a execução de referência fica em docs/load-test/
+test/load/results/

@@ -24,8 +24,8 @@ reprocessador) e entram em **qualquer** log emitido dentro dele — inclusive os
 ### O que nunca aparece
 
 Valores e saldos (`money`, `amount`, `balance*`, `initialBalance`, `difference`, `credits`, `debits`…), corpos de
-requisição/resposta, payloads de eventos e corpos de mensagem (`payload`, `data`, `body`, `Body`, `MessageBody`) e
-headers de autenticação são removidos pelo redaction do pino (`src/shared/observability/log-redaction.ts`), em até
+requisição/resposta, payloads de eventos e corpos de mensagem (`payload`, `data`, `body`, `Body`, `MessageBody`),
+`detail`/`params`/`parameters` de erros do banco (a linha recusada pode conter valores) e headers de autenticação são removidos pelo redaction do pino (`src/shared/observability/log-redaction.ts`), em até
 três níveis de aninhamento. Mensagens de erro de validação descrevem só o caminho do campo, nunca o valor recebido.
 O teste `test/integration/observability/structured-logs.test.ts` processa BETs de 25.00 por HTTP e pela fila com
 `LOG_LEVEL=debug` e confere que nenhuma linha contém `25.00`, `1000.00`, `975.00` ou `950.00`.

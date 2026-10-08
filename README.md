@@ -64,9 +64,13 @@ bun run typecheck && bun run lint           # tsc --noEmit + Biome (bun run lint
 
 # Mensagem de teste na fila de entrada
 bun scripts/send-message.ts --wallet <walletId> --player <playerId> [--kind BET --amount 25.00 --count 2 …]
+
+# Teste de carga (4 cenários; stack do compose de pé — LOG_LEVEL=warn recomendado; ~10 min)
+LOG_LEVEL=warn docker compose up -d --build && bun run test:load
+LOAD_TARGET=local bun run test:load         # sem Docker: o script sobe 3 réplicas de cada papel contra a infra do .env
 ```
 
-O teste de carga (`bun run test:load`) ainda não existe — é a fase seguinte do plano (`docs/plano/`).
+Metodologia, resultados e análise do teste de carga: **[LOAD_TEST.md](LOAD_TEST.md)**.
 
 ## Exemplos de ponta a ponta
 

@@ -350,4 +350,5 @@ Todo teste de integração/concorrência termina com `assertLedgerInvariant()`: 
 - Resposta de transação `PENDING_REFERENCE` (nova ou replay, 202) e de replay `FAILED` (500) **sem** `balance`: não há snapshot gravado e o replay não recalcula nada. *(F09/F10, 2026-10-07)*
 - Referência de outro provider nunca é encontrada (a busca é por `(providerId, referenceExternalTransactionId)`): a operação fica `PENDING_REFERENCE` e expira como `REFERENCE_NOT_FOUND`. *(F10, 2026-10-07)*
 - Esgotado o TTL/tentativas, a pendência vira `REFERENCE_NOT_FOUND` mesmo que a referência exista mas continue pendente (cadeia de pendências). *(F10, 2026-10-07)*
+- Wallet aberta com `0.00`: sem lançamento de abertura, o primeiro lançamento tem `walletVersion = 2`; a reconciliação aceita a cadeia começando em 1 ou 2 (sempre a partir de saldo 0). *(F17, 2026-10-08)*
 - Riscos: compatibilidade Bun × Nest × MikroORM (fase 00), FIFO + redrive no LocalStack (fase 01), head-of-line blocking do FIFO por wallet (aceito — ordenação por wallet é desejada).

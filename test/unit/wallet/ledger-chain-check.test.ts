@@ -82,6 +82,28 @@ describe('checkLedgerChain', () => {
     expect(result.issues.has(ReconciliationIssue.VersionGap)).toBe(true);
   });
 
+  it('accepts a wallet opened with 0.00 whose first movement is version 2 (no opening entry)', async () => {
+    const chain = [
+      entry(2, LedgerDirection.Credit, '10.00', '0.00', '10.00'),
+      entry(3, LedgerDirection.Debit, '4.00', '10.00', '6.00'),
+    ];
+    const result = await checkLedgerChain(walletWith('6.00', 3), iterate(chain));
+    expect(result.checkedEntries).toBe(2);
+    expect([...result.issues]).toEqual([]);
+  });
+
+  it('flags a first entry above version 2 (versions before it are missing)', async () => {
+    const chain = [entry(3, LedgerDirection.Credit, '10.00', '0.00', '10.00')];
+    const result = await checkLedgerChain(walletWith('10.00', 3), iterate(chain));
+    expect([...result.issues]).toEqual([ReconciliationIssue.VersionGap]);
+  });
+
+  it('flags a version-2 first entry that does not start from zero (lost opening entry)', async () => {
+    const chain = [entry(2, LedgerDirection.Debit, '30.00', '100.00', '70.00')];
+    const result = await checkLedgerChain(walletWith('70.00', 2), iterate(chain));
+    expect([...result.issues]).toEqual([ReconciliationIssue.ChainBroken]);
+  });
+
   it('flags a broken chain (balanceBefore different from the previous balanceAfter)', async () => {
     const chain = validChain();
     chain[2] = entry(3, LedgerDirection.Credit, '5.50', '71.00', '76.50');

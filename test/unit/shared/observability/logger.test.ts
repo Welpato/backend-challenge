@@ -79,4 +79,16 @@ describe('logger options', () => {
     expect(line?.req).toEqual({ method: 'POST', body: '[REDACTED]' });
     expect(JSON.stringify(line)).not.toContain('25.00');
   });
+  it('redacts database error details and query parameters that may carry amounts', () => {
+    const { logger, lines } = captureLogger();
+    const error = Object.assign(new Error('new row violates check constraint'), {
+      detail: 'Failing row contains (w-1, p-1, BRL, -25.00, 1).',
+      parameters: ['-25.00'],
+    });
+    logger.error({ err: error }, 'Unexpected database error');
+
+    const serialized = JSON.stringify(lines());
+    expect(serialized).not.toContain('25.00');
+    expect(serialized).toContain('check constraint');
+  });
 });
