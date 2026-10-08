@@ -1,6 +1,6 @@
 # Ambiente local completo: PostgreSQL, LocalStack (SQS), migrations, 3× api atrás do nginx e os workers.
 #   docker compose up -d --build
-#   curl -s localhost:8080/health/ready
+#   curl -s localhost:8082/health/ready
 # Réplicas configuráveis: API_REPLICAS, CONSUMER_REPLICAS, OUTBOX_REPLICAS, REPROCESSOR_REPLICAS (default 3).
 name: jungle-wagering
 
@@ -99,10 +99,10 @@ services:
 
   nginx:
     image: nginx:1.29-alpine
-    # O nginx escuta na 8081 dentro do container; a porta do host é configurável (ex.: NGINX_PORT=8081 se a 8081
-    # estiver ocupada). Antes estava "8080:8080", que não alcançava o nginx.
+    # host:container — o nginx escuta na 8080 DENTRO do container (docker/nginx.conf); no Mac a 8080 está em uso,
+    # então o host publica na 8082 (sobrescrevível com NGINX_PORT).
     ports:
-      - "${NGINX_PORT:-8081}:8081"
+      - "${NGINX_PORT:-8082}:8080"
     volumes:
       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -110,7 +110,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/nginx-health"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/nginx-health"]
       interval: 5s
       timeout: 3s
       retries: 10

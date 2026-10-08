@@ -21,13 +21,13 @@ Decisões, trade-offs e limitações: **[ARCHITECTURE.md](ARCHITECTURE.md)**. M�
 ```bash
 docker compose up -d --build
 docker compose ps                         # postgres, localstack, migrate (exited 0), 3× api, nginx, 3× cada worker
-curl -s localhost:8080/health/ready       # {"status":"ok",…,"checks":{"postgres":{"status":"up"},"sqs":{"status":"up"}}}
+curl -s localhost:8082/health/ready       # {"status":"ok",…,"checks":{"postgres":{"status":"up"},"sqs":{"status":"up"}}}
 ```
 
 | O quê | Onde |
 |---|---|
-| API (nginx round-robin sobre 3 réplicas `api`) | `http://localhost:8080` — outra porta: `NGINX_PORT=8081 docker compose up -d` |
-| Métricas de uma réplica da API | `http://localhost:8080/metrics` (cada requisição cai numa réplica; a série tem o label `instance`) |
+| API (nginx round-robin sobre 3 réplicas `api`) | `http://localhost:8082` (o nginx escuta na 8080 dentro do container) — outra porta: `NGINX_PORT=9090 docker compose up -d` |
+| Métricas de uma réplica da API | `http://localhost:8082/metrics` (cada requisição cai numa réplica; a série tem o label `instance`) |
 | Métricas de um worker | `docker compose exec outbox bun -e 'console.log(await (await fetch("http://localhost:3000/metrics")).text())'` |
 | Liveness / readiness | `/health/live`, `/health/ready` (sem autenticação) |
 | LocalStack (SQS) | `http://localhost:4566` — filas `wager-transactions.fifo`, `wager-transactions-dlq.fifo`, `wallet-events.fifo` |
@@ -74,7 +74,7 @@ Contra a stack do `docker compose` (troque a porta se usou `NGINX_PORT`). Copie 
 as variáveis são reaproveitadas de um exemplo para o outro.
 
 ```bash
-API=http://localhost:8080
+API=http://localhost:8082
 PLAYER="player-$(date +%s)"
 
 # 1. Criar wallet com 1000.00 BRL (gera OPENING + CREDIT no ledger na mesma transação SQL) → 201
@@ -192,7 +192,7 @@ docs/observabilidade.md · docs/plano/          # plano por fases, especificaç�
 
 ```bash
 # Reconciliação de uma wallet pela API (somente leitura; divergência → consistent:false + log + métrica)
-curl -s -X POST localhost:8080/wallets/$WALLET/reconciliation | jq '{consistent, difference, checkedEntries}'
+curl -s -X POST localhost:8082/wallets/$WALLET/reconciliation | jq '{consistent, difference, checkedEntries}'
 
 # No banco, para todas as wallets: saldo == Σ créditos − Σ débitos e último lançamento == wallet
 docker compose exec postgres psql -U wagering -d wagering -c "
