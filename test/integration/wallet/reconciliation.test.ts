@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { Money } from '@/shared/money/money';
-import { WagerTransactionKind } from '@/wagering/domain/transaction-kind';
 import { RECONCILIATION_MISMATCHES_METRIC } from '@/wallet/infrastructure/reconciliation-monitor';
 import { appDb, closeDb, migratorDb, truncateAll } from '../../support/db';
 import { openPersistence, type Persistence } from '../../support/persistence';
 import { type RunningTestApp, startTestApp } from '../../support/test-app';
-import { AT, betFor } from '../persistence/persistence-fixtures';
+import { moveBalance } from '../persistence/persistence-fixtures';
 import { createWallet, expectError, getJson, metricValue, postJson, type WalletJson } from './wallet-test-kit';
 
 interface ReconciliationJson {
@@ -46,7 +45,7 @@ async function openWallet(amount: string): Promise<WalletJson> {
   return response.body;
 }
 
-/** Débitos via repositórios, um por unidade de trabalho (como o processamento de transação fará). */
+/** Débitos via repositórios, um por unidade de trabalho (como o processamento de transação faz). */
 async function debit(walletId: string, amounts: readonly string[]): Promise<void> {
   for (const amount of amounts) {
     await db.uow.run(async () => {
@@ -54,12 +53,7 @@ async function debit(walletId: string, amounts: readonly string[]): Promise<void
       if (wallet === undefined) {
         throw new Error('wallet not found');
       }
-      const tx = betFor(wallet, { kind: WagerTransactionKind.Bet, money: brl(amount) });
-      await db.transactions.insertIfAbsent(tx);
-      const expectedVersion = wallet.version;
-      const entry = wallet.debit(tx.id, brl(amount), AT);
-      await db.wallets.updateBalance(wallet, expectedVersion);
-      await db.ledger.append(entry);
+      await moveBalance(db, wallet, 'debit', brl(amount));
     });
   }
 }
@@ -71,7 +65,9 @@ async function debit(walletId: string, amounts: readonly string[]): Promise<void
 async function corruptBalance(walletId: string, balance: string): Promise<void> {
   await migratorDb().begin(async (sql) => {
     await sql`alter table wallets disable trigger trg_wallet_ledger_consistency`;
+    await sql`alter table wallets disable trigger trg_wallets_immutable`;
     await sql`update wallets set balance = ${balance}::numeric where id = ${walletId}`;
+    await sql`alter table wallets enable trigger trg_wallets_immutable`;
     await sql`alter table wallets enable trigger trg_wallet_ledger_consistency`;
   });
 }

@@ -35,7 +35,7 @@ Legenda: ✅ atendido · ⚠️ atendido com limitação registrada no ARCHITECT
 | §5.6 sem lock global | ✅ | lock por linha `SELECT … FOR NO KEY UPDATE` da wallet (`wallet/infrastructure/wallet.repository.ts`) |
 | §5.7 sem read→calculate→update sem controle | ✅ | lock da wallet + `UPDATE … WHERE version = :expected` (mesmo repositório) |
 | §5.8 múltiplas instâncias | ✅ | suíte multi-instância |
-| §5.9 garantias no schema | ✅ | CHECKs, UNIQUEs, índice parcial, 4 triggers de imutabilidade e constraint trigger diferida wallet ↔ ledger (`0001_init.ts`; ARCHITECTURE §7 mapeia garantia → constraint); 75 testes em `test/integration/schema` |
+| §5.9 garantias no schema | ✅ | CHECKs, UNIQUEs, índice parcial, 4 triggers de imutabilidade e constraint trigger diferida wallet ↔ ledger (`0001_init.ts`) + **`0002_schema_hardening.ts`** (identidade da wallet imutável e versão +1 só com o saldo; integridade de cada lançamento no COMMIT — transação PROCESSED, não LOSS, mesma wallet/valor/moeda, direção por kind, cadeia contígua; inbox só marca processada). ARCHITECTURE §7 mapeia garantia → constraint; testes em `test/integration/schema` (16 novos em `schema-hardening.test.ts`) |
 | §6.0 construtor privado, factories, `rehydrate` sem validação | ✅ | `wallet.ts:47,63,105`, `wallet-ledger-entry.ts:34,48,54`, `wager-transaction.ts:32,64,100`, `money.ts:22,29,47`, `inbox-message.ts:27,35,55`, `outbox-message.ts:38,53,72` |
 | §6.1 Money | ✅ | `test/unit/shared/money/money.test.ts` (escala, NaN/Infinity/notação científica, sem arredondamento 0.10 + 0.20, BRL×USD) |
 | §6.2 Wallet: `version` começa em 1 e só muda com o saldo | ✅ | `wallet.ts:58-83,159-163`; `test/unit/wallet/wallet.test.ts`. **Correção desta fase**: a reconciliação marcava `VERSION_GAP` em wallet aberta com 0.00 (ver "Correções") |
@@ -86,6 +86,15 @@ Legenda: ✅ atendido · ⚠️ atendido com limitação registrada no ARCHITECT
    lotes é melhor esforço (vários publishers / reagendamento) e o consumidor usa `walletVersion`. §14 ganhou a janela
    de indisponibilidade antes da DLQ, o redrive fora da métrica e o `TRUNCATE` do dono. `CLAUDE.md` com a porta do
    nginx no host (8082). JSDoc de `SQS_VISIBILITY_TIMEOUT_SECONDS`/`SQS_MAX_RECEIVE_COUNT` (espelhos do init da fila).
+
+## Endurecimento posterior do schema (0002, 2026-10-08)
+
+Revisão das restrições invioláveis depois da auditoria: nenhuma violada, mas a restrição 9 tinha lacunas que só o
+código cobria — o `app` conseguia trocar `currency`/`player_id` de uma wallet com lançamentos (reproduzido), e
+nada no schema amarrava o lançamento à sua transação (wallet, valor, moeda, status, kind/direção) nem a cadeia de
+versões/saldos. Fechadas pela migration `0002_schema_hardening` (ARCHITECTURE §7), com 16 testes de schema novos.
+Fixtures de teste que gravavam lançamentos de transações não processadas ou pulavam versões foram ajustadas
+(`moveBalance` em `test/integration/persistence/persistence-fixtures.ts`).
 
 ## Achados avaliados e não alterados
 

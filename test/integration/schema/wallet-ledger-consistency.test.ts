@@ -31,7 +31,7 @@ describe('wallet ↔ ledger consistency (deferred)', () => {
 
     await expectPgError(
       appDb().begin(async (tx) => {
-        await tx`update wallets set balance = balance + 10 where id = ${wallet.id}`;
+        await tx`update wallets set balance = balance + 10, version = version + 1 where id = ${wallet.id}`;
       }),
       PgError.checkViolation,
       CONSISTENCY,
@@ -82,14 +82,19 @@ describe('wallet ↔ ledger consistency (deferred)', () => {
     expect(await walletState(wallet.id)).toEqual([{ balance: '75.00', version: '2' }]);
   });
 
-  it('fails when the version is not bumped together with the new entry', async () => {
+  it('fails when the wallet version does not match the new entry', async () => {
     const { wallet } = await insertFundedWallet(appDb(), '100.00');
     const win = processedRow(wallet, { kind: 'WIN', amount: '10.00' });
+    const bet = processedRow(wallet, { kind: 'BET', amount: '10.00' });
 
     await expectPgError(
       appDb().begin(async (tx) => {
         await insertTransaction(tx, win);
-        await tx`update wallets set balance = 110 where id = ${wallet.id}`;
+        await insertTransaction(tx, bet);
+        // Duas mudanças de saldo (versão 3) com um único lançamento (versão 2).
+        await tx`update wallets set balance = 110, version = 2 where id = ${wallet.id}`;
+        await tx`update wallets set balance = 100, version = 3 where id = ${wallet.id}`;
+        await tx`update wallets set balance = 110, version = 4 where id = ${wallet.id}`;
         await insertLedgerEntry(
           tx,
           ledgerEntryRow(wallet, win, {
@@ -144,7 +149,7 @@ describe('wallet ↔ ledger consistency (deferred)', () => {
     const { wallet } = await insertFundedWallet(appDb(), '100.00');
 
     await expectPgError(
-      appDb()`update wallets set balance = 0 where id = ${wallet.id}`,
+      appDb()`update wallets set balance = 0, version = version + 1 where id = ${wallet.id}`,
       PgError.checkViolation,
       CONSISTENCY,
     );

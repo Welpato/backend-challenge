@@ -120,7 +120,7 @@ negativo → `REVERSAL_INSUFFICIENT_FUNDS` (distinto de `INSUFFICIENT_FUNDS`).
   e as unicidades são do schema; a reconciliação usa `REPEATABLE READ READ ONLY` (snapshot único de wallet + ledger).
 - **Erros do PostgreSQL classificados** (`pg-errors.ts`): `40001`/`40P01`/`55P03`/conexão → transitório (HTTP 503 +
   `Retry-After`; SQS reentrega com backoff); `23505` com o nome da constraint → caminho de idempotência; `23503` na
-  FK da wallet → `WALLET_NOT_FOUND`; `P0001` (triggers de imutabilidade) e `23514` da consistência no COMMIT → bug
+  FK da wallet → `WALLET_NOT_FOUND`; `P0001` (triggers de imutabilidade) e `23514` da consistência/integridade no COMMIT → bug
   (500). Um *pool-guard* devolve ao pool conexões perdidas no meio de uma transação (bug do Kysely sob o MikroORM).
 - **Dois roles**: `migrator` (DDL, roda as migrations) e `app` (só DML, e só `SELECT/INSERT` no ledger).
 
@@ -184,8 +184,8 @@ Detalhes:
 
 ## 7. Schema como última linha de defesa
 
-Migration `migrations/0001_init.ts` (com `down`). O código respeita as regras; o schema garante que nem um bug as
-viole.
+Migrations `migrations/0001_init.ts` e `migrations/0002_schema_hardening.ts` (ambas com `down`; a 0002 veio da
+auditoria final). O código respeita as regras; o schema garante que nem um bug as viole.
 
 | Garantia | Constraint / índice / trigger |
 |---|---|
@@ -199,11 +199,13 @@ viole.
 | Estados terminais e colunas de negócio imutáveis | trigger `trg_tx_immutable`: linha `PROCESSED/REJECTED/FAILED` não muda; nas demais, só as colunas que as transições alteram (lista de permitidas — coluna nova nasce imutável); DELETE proibido |
 | Uma reversão por referência | índice único parcial `ux_reversal_once ON (reference_transaction_id) WHERE kind IN ('REFUND','ROLLBACK') AND status = 'PROCESSED'` |
 | Regras por kind/status | `ck_wager_transactions_reversal_reference`, `ck_wager_transactions_positive_amount`, `ck_wager_transactions_failure_code` (`failure_code` ⇔ REJECTED/FAILED), `ck_wager_transactions_pending_reference_schedule`, `ck_wager_transactions_balance_after_pair`, CHECKs de `kind`/`status`/`direction`/moeda |
-| Inbox deduplicada e preservada | PK `(consumer_name, message_id)` + `trg_inbox_no_delete` |
+| Identidade da wallet imutável; versão só com o saldo | trigger `trg_wallets_immutable` (0002): `id`, `player_id`, `currency`, `created_at` nunca mudam (lista de permitidas: `balance`, `version`, `updated_at`); nasce na versão 1; saldo mudou ⇒ versão **+1 exata**, saldo igual ⇒ versão igual; DELETE proibido, inclusive para o dono |
+| Lançamento coerente com a transação e com a cadeia | constraint trigger **diferida** `trg_ledger_entry_integrity` (0002), no COMMIT: mesma wallet, valor e moeda da transação e moeda da wallet; só transação `PROCESSED` e nunca `LOSS`; BET ⇒ DEBIT, OPENING/WIN/REFUND ⇒ CREDIT, ROLLBACK ⇒ inverso do lançamento da referência; versão = anterior + 1 e `balance_before` = `balance_after` anterior (o primeiro: versão 1 ou 2, a partir de 0.00) |
+| Inbox deduplicada e preservada | PK `(consumer_name, message_id)` + `trg_inbox_no_delete`; `trg_inbox_immutable` (0002): só `processed_at` muda, e só de NULL para um instante (o hash nunca muda; processada não volta a pendente) |
 | Evento da outbox imutável | `trg_outbox_immutable` (payload, tipo, agregado, id, versão, datas); só o estado de publicação muda |
 | Menor privilégio | `app`: `SELECT, INSERT, UPDATE` em wallets/transações/outbox/inbox; `SELECT, INSERT` no ledger; **nenhum DELETE** |
 
-Cada linha tem teste de integração com SQL direto (`test/integration/schema`, 75 casos), inclusive como dono da
+Cada linha tem teste de integração com SQL direto (`test/integration/schema`, 91 casos), inclusive como dono da
 tabela.
 
 ## 8. Reversões e referências fora de ordem

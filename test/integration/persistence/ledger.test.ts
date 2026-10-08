@@ -4,7 +4,7 @@ import type { WalletLedgerEntry } from '@/wallet/domain/wallet-ledger-entry';
 import { MikroOrmLedgerRepository } from '@/wallet/infrastructure/ledger.repository';
 import { closeDb, truncateAll } from '../../support/db';
 import { openPersistence, type Persistence } from '../../support/persistence';
-import { AT, betFor, brl, persistOpenedWallet } from './persistence-fixtures';
+import { brl, moveBalance, persistOpenedWallet } from './persistence-fixtures';
 
 let db: Persistence;
 
@@ -25,17 +25,12 @@ beforeEach(async () => {
 async function applyOperations(wallet: Wallet, operations: readonly string[]): Promise<void> {
   for (const operation of operations) {
     const money = brl(operation.slice(1));
-    const tx = betFor(wallet, { money });
     await db.uow.run(async () => {
-      await db.transactions.insertIfAbsent(tx);
       const current = await db.wallets.findByIdForUpdate(wallet.id);
       if (current === undefined) {
         throw new Error('wallet not found');
       }
-      const expectedVersion = current.version;
-      const entry = operation.startsWith('-') ? current.debit(tx.id, money, AT) : current.credit(tx.id, money, AT);
-      await db.wallets.updateBalance(current, expectedVersion);
-      await db.ledger.append(entry);
+      await moveBalance(db, current, operation.startsWith('-') ? 'debit' : 'credit', money);
     });
   }
 }

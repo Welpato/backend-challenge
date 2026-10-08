@@ -71,6 +71,32 @@ export function betFor(wallet: Wallet, overrides: Partial<CreateWagerTransaction
   });
 }
 
+/**
+ * Movimenta o saldo de uma wallet **já travada** pelo chamador, como o use case (F09): BET para débito ou WIN
+ * para crédito, saldo/versão (`UPDATE … WHERE version`), lançamento e a transação `PROCESSED` — a 0002 exige no
+ * schema que todo lançamento seja de uma transação processada, do kind e da direção coerentes.
+ */
+export async function moveBalance(
+  db: Persistence,
+  locked: Wallet,
+  direction: 'debit' | 'credit',
+  money: Money,
+  at: Date = AT,
+): Promise<WagerTransaction> {
+  const tx = betFor(locked, {
+    kind: direction === 'debit' ? WagerTransactionKind.Bet : WagerTransactionKind.Win,
+    money,
+  });
+  await db.transactions.insertIfAbsent(tx);
+  const expectedVersion = locked.version;
+  const entry = direction === 'debit' ? locked.debit(tx.id, money, at) : locked.credit(tx.id, money, at);
+  await db.wallets.updateBalance(locked, expectedVersion);
+  await db.ledger.append(entry);
+  tx.markProcessed(undefined, locked.balance, at);
+  await db.transactions.save(tx);
+  return tx;
+}
+
 export function inboxMessage(messageId = `msg-${randomUUID()}`, payload = 'payload'): InboxMessage {
   return InboxMessage.receive({
     messageId,

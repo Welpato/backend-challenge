@@ -185,6 +185,7 @@ src/
   messaging/    inbox/ outbox/ sqs/ reprocessor/
   health/
 migrations/0001_init.ts                        # schema, constraints, triggers, grants
+migrations/0002_schema_hardening.ts            # imutabilidade da wallet, integridade do lançamento, inbox
 docker/                                        # init do PostgreSQL (roles), do LocalStack (filas), nginx
 scripts/                                       # migrate, test-integration, send-message, healthcheck, wait-for-infra
 test/

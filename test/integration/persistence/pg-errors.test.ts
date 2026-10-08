@@ -88,10 +88,12 @@ describe('UnitOfWork error classification (real PostgreSQL errors)', () => {
   it('classifies a CHECK violation with the constraint name', async () => {
     const { wallet } = await persistOpenedWallet(db, brl('0.00'));
     const error = await captureError(
-      db.uow.run((em) => em.execute("update wallets set currency = 'brl' where id = ?", [wallet.id])),
+      db.uow.run((em) =>
+        em.execute('update wallets set balance = -1, version = version + 1 where id = ?', [wallet.id]),
+      ),
     );
     expect(error).toBeInstanceOf(CheckViolationError);
-    expect(error).toMatchObject({ constraint: 'wallets_currency_check' });
+    expect(error).toMatchObject({ constraint: 'wallets_balance_check' });
   });
 
   it('classifies the deferred wallet ↔ ledger consistency failure raised at COMMIT', async () => {
@@ -173,7 +175,7 @@ describe('UnitOfWork error classification (real PostgreSQL errors)', () => {
     const { wallet } = await persistOpenedWallet(db, brl('0.00'));
     const bothRead = latch();
     let reads = 0;
-    const attempt = (playerId: string) =>
+    const attempt = (updatedAt: Date) =>
       db.uow.run(
         async (em) => {
           await em.execute('select count(*) from wallets where player_id like ?', ['serial-%']);
@@ -182,11 +184,15 @@ describe('UnitOfWork error classification (real PostgreSQL errors)', () => {
             bothRead.open();
           }
           await bothRead.promise;
-          await em.execute('update wallets set player_id = ? where id = ?', [playerId, wallet.id]);
+          // Coluna mutável (a 0002 congela player_id/currency): o único conflito é o de serialização.
+          await em.execute('update wallets set updated_at = ? where id = ?', [updatedAt, wallet.id]);
         },
         { isolation: 'serializable' },
       );
-    const results = await Promise.allSettled([attempt('serial-a'), attempt('serial-b')]);
+    const results = await Promise.allSettled([
+      attempt(new Date('2026-10-08T00:00:01Z')),
+      attempt(new Date('2026-10-08T00:00:02Z')),
+    ]);
     const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     expect(failures).toHaveLength(1);
     expect(failures[0]?.reason).toBeInstanceOf(TransientDatabaseError);

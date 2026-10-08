@@ -189,6 +189,11 @@ CREATE INDEX ix_outbox_due ON outbox_messages(next_attempt_at) WHERE published_a
 
 Dois roles: `migrator` (DDL) e `app` (DML com os grants acima).
 
+**Migration `0002_schema_hardening`** (pós-auditoria, 2026-10-08) — garantias da §6 que só o código aplicava:
+- `trg_wallets_immutable` (BEFORE INSERT/UPDATE/DELETE em `wallets`): `id`, `player_id`, `currency`, `created_at` imutáveis; nasce na versão 1; saldo mudou ⇒ versão +1 exata, saldo igual ⇒ versão igual; DELETE proibido.
+- `trg_ledger_entry_integrity` (constraint trigger DEFERRABLE INITIALLY DEFERRED no ledger): no COMMIT, lançamento da mesma wallet, valor e moeda da transação e na moeda da wallet; transação `PROCESSED` e não `LOSS`; BET ⇒ DEBIT, OPENING/WIN/REFUND ⇒ CREDIT, ROLLBACK ⇒ inverso do lançamento da referência; versão = anterior + 1 e `balance_before` = `balance_after` anterior (primeiro: versão 1 ou 2, a partir de 0). Erro `23514` com `constraint = 'trg_ledger_entry_integrity'`.
+- `trg_inbox_immutable` (BEFORE UPDATE em `inbox_messages`): só `processed_at` muda, de NULL para um instante.
+
 ---
 
 ## 5. Use case `ProcessWagerTransaction`

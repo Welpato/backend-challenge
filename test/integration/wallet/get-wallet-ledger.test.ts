@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { Money } from '@/shared/money/money';
-import { WagerTransactionKind } from '@/wagering/domain/transaction-kind';
 import { encodeLedgerCursor } from '@/wallet/application/ledger-cursor';
 import { closeDb, truncateAll } from '../../support/db';
 import { openPersistence, type Persistence } from '../../support/persistence';
 import { type RunningTestApp, startTestApp } from '../../support/test-app';
-import { AT, betFor } from '../persistence/persistence-fixtures';
+import { moveBalance } from '../persistence/persistence-fixtures';
 import { createWallet, expectError, getJson, type MoneyJson, type WalletJson } from './wallet-test-kit';
 
 interface LedgerEntryJson {
@@ -46,8 +45,8 @@ beforeEach(async () => {
 const brl = (amount: string): Money => Money.from({ amount, currency: 'BRL' });
 
 /**
- * Acrescenta `count` lançamentos à wallet pelos repositórios (como o use case de transação fará): cada um com
- * a sua transação, alternando débito de 1.00 e crédito de 0.50, numa única unidade de trabalho.
+ * Acrescenta `count` lançamentos à wallet pelos repositórios (como o use case de transação faz): cada um com a
+ * sua transação processada, alternando débito de 1.00 (BET) e crédito de 0.50 (WIN), numa única unidade de trabalho.
  */
 async function appendEntries(walletId: string, count: number): Promise<void> {
   await db.uow.run(async () => {
@@ -55,16 +54,10 @@ async function appendEntries(walletId: string, count: number): Promise<void> {
     if (wallet === undefined) {
       throw new Error('wallet not found');
     }
-    const initialVersion = wallet.version;
     for (let i = 0; i < count; i += 1) {
       const debit = i % 2 === 0;
-      const money = debit ? brl('1.00') : brl('0.50');
-      const tx = betFor(wallet, { kind: debit ? WagerTransactionKind.Bet : WagerTransactionKind.Win, money });
-      await db.transactions.insertIfAbsent(tx);
-      const entry = debit ? wallet.debit(tx.id, money, AT) : wallet.credit(tx.id, money, AT);
-      await db.ledger.append(entry);
+      await moveBalance(db, wallet, debit ? 'debit' : 'credit', debit ? brl('1.00') : brl('0.50'));
     }
-    await db.wallets.updateBalance(wallet, initialVersion);
   });
 }
 
