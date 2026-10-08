@@ -56,7 +56,8 @@ bun test test/unit                          # testes de unidade (= bun run test:
 bun run test:integration                    # espera a infra de teste, aplica migrations como migrator e roda test/integration
 bun run test:integration -- <caminho>       # idem, só para um diretório/arquivo (ex.: test/integration/schema)
 bun run test:integration:up                 # sobe a infra de teste (docker-compose.test.yml) e roda o anterior
-bun run test:concurrency                    # concorrência multi-processo (a partir da F13)
+bun run test:concurrency                    # test/concurrency: single-process (F09/F10) + multi-instância com processos reais (F13), ~2 min; aceita -- <caminho>
+bun scripts/send-message.ts --wallet <id> --player <id> [--kind BET --amount 25.00 --count 2 …]   # F12: publica na wager-transactions.fifo
 bun run typecheck && bun run lint           # tsc --noEmit + Biome (bun run lint:fix corrige formatação)
 ```
 

@@ -30,6 +30,15 @@ export interface AppConfig {
     readonly waitTimeSeconds: number;
     readonly visibilityTimeoutSeconds: number;
     readonly maxReceiveCount: number;
+    /** Limite de mensagens em processamento simultâneo por instância do consumidor (F12). */
+    readonly consumerMaxInFlight: number;
+    /** Backoff do consumidor (F12) para falhas transitórias, via `ChangeMessageVisibility`. */
+    readonly retryBackoffBaseMs: number;
+    readonly retryBackoffMaxMs: number;
+  };
+  readonly metrics: {
+    /** Intervalo da coleta periódica dos gauges de banco (`outbox_*`, `pending_references`). */
+    readonly collectIntervalMs: number;
   };
   readonly timeouts: {
     readonly healthCheckMs: number;
@@ -37,14 +46,21 @@ export interface AppConfig {
   };
   readonly outbox: {
     readonly pollIntervalMs: number;
+    readonly batchSize: number;
   };
   readonly reprocessor: {
     readonly intervalMs: number;
+    readonly batchSize: number;
+    /** Por quanto tempo uma pendência reivindicada fica fora do alcance de outras instâncias. */
+    readonly leaseMs: number;
     readonly pendingReferenceTtlMs: number;
     readonly pendingReferenceMaxAttempts: number;
+    readonly pendingReferenceBackoffBaseMs: number;
+    readonly pendingReferenceBackoffMaxMs: number;
   };
   /** Injeção de falhas — usada apenas pelos testes de recuperação. */
   readonly faults: {
     readonly exitAfterCommit: boolean;
+    readonly exitAfterPublish: boolean;
   };
 }

@@ -63,4 +63,8 @@ export class MikroOrmOutboxRepository implements OutboxRepository {
         : Math.max(0, (this.clock.now().getTime() - oldestPendingOccurredAt.getTime()) / 1000);
     return { pending, oldestPendingOccurredAt, oldestPendingAgeSeconds };
   }
+
+  countPendingOverAttempts(threshold: number): Promise<number> {
+    return this.uow.em.count(OutboxMessageRecord, { publishedAt: null, attempts: { $gt: threshold } });
+  }
 }

@@ -45,7 +45,7 @@ describe('health endpoints (real infrastructure)', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/plain');
-    expect(text).toContain('process_cpu_user_seconds_total{role="api",instance_id="it-api-1"}');
+    expect(text).toContain('process_cpu_user_seconds_total{instance="it-api-1",role="api"}');
   });
 });
 

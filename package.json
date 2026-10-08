@@ -12,6 +12,7 @@
     "test:unit": "bun test test/unit",
     "test:integration": "NODE_ENV=test bun scripts/test-integration.ts",
     "test:integration:up": "bun run infra:test:up && bun run test:integration",
+    "test:concurrency": "NODE_ENV=test TEST_SUITE=test/concurrency bun scripts/test-integration.ts",
     "infra:test:up": "docker compose -f docker-compose.test.yml up -d",
     "infra:test:down": "docker compose -f docker-compose.test.yml down",
     "infra:wait": "bun scripts/wait-for-infra.ts",

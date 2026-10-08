@@ -14,6 +14,17 @@ export class ConcurrencyInvariantError extends Error {
   }
 }
 
+/**
+ * Caso específico: `UPDATE wallets … WHERE version = :expected` não afetou linha (guarda de versão de §2). Conta
+ * como conflito de lock `version` na métrica `wallet_lock_conflicts_total`.
+ */
+export class WalletVersionConflictError extends ConcurrencyInvariantError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WalletVersionConflictError';
+  }
+}
+
 /** Um valor lido do banco não cabe no modelo de domínio (dado corrompido ou schema divergente). */
 export class CorruptRecordError extends Error {
   constructor(message: string) {

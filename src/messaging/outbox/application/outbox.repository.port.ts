@@ -24,4 +24,6 @@ export interface OutboxRepository {
   /** UPDATE do estado de publicação (`attempts`, `next_attempt_at`, `published_at`, `last_error`). */
   save(message: OutboxMessage): Promise<void>;
   stats(): Promise<OutboxStats>;
+  /** Pendentes com `attempts > threshold` — base do alerta de publicação travada (F11). */
+  countPendingOverAttempts(threshold: number): Promise<number>;
 }

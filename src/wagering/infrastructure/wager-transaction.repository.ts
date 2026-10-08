@@ -118,6 +118,31 @@ export class MikroOrmWagerTransactionRepository implements WagerTransactionRepos
     return ids;
   }
 
+  /**
+   * Só linhas da wallet cujo lock o chamador já tem: uma referência válida é sempre da mesma wallet (senão é
+   * `REFERENCE_MISMATCH`), então nenhuma linha de outra wallet é tocada e a ordem de locks (§2) se mantém.
+   * `next_attempt_at > agora` evita reescrever linhas já vencidas. Uma linha em lease antecipada pode ser
+   * reivindicada de novo — inofensivo: a resolução relê a linha sob o lock da wallet e ignora se já saiu de pendente.
+   */
+  async expediteDependents(walletId: string, providerId: string, externalTransactionId: string): Promise<number> {
+    const now = this.clock.now();
+    return this.uow.em.nativeUpdate(
+      WagerTransactionRecord,
+      {
+        walletId,
+        providerId,
+        referenceExternalTransactionId: externalTransactionId,
+        status: WagerTransactionStatus.PendingReference,
+        nextAttemptAt: { $gt: now },
+      },
+      { nextAttemptAt: now, updatedAt: now },
+    );
+  }
+
+  countPendingReferences(): Promise<number> {
+    return this.uow.em.count(WagerTransactionRecord, { status: WagerTransactionStatus.PendingReference });
+  }
+
   private async findOneBy(where: Partial<WagerTransactionRecord>): Promise<WagerTransaction | undefined> {
     const record = await this.uow.em.findOne(WagerTransactionRecord, where, UNTRACKED);
     return record === null ? undefined : WagerTransactionMapper.toDomain(record);

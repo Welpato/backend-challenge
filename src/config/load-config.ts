@@ -43,6 +43,12 @@ function toAppConfig(env: ParsedEnv): AppConfig {
       waitTimeSeconds: env.SQS_WAIT_TIME_SECONDS,
       visibilityTimeoutSeconds: env.SQS_VISIBILITY_TIMEOUT_SECONDS,
       maxReceiveCount: env.SQS_MAX_RECEIVE_COUNT,
+      consumerMaxInFlight: env.SQS_CONSUMER_MAX_IN_FLIGHT,
+      retryBackoffBaseMs: env.SQS_RETRY_BACKOFF_BASE_MS,
+      retryBackoffMaxMs: env.SQS_RETRY_BACKOFF_MAX_MS,
+    },
+    metrics: {
+      collectIntervalMs: env.METRICS_COLLECT_INTERVAL_MS,
     },
     timeouts: {
       healthCheckMs: env.HEALTH_CHECK_TIMEOUT_MS,
@@ -50,14 +56,20 @@ function toAppConfig(env: ParsedEnv): AppConfig {
     },
     outbox: {
       pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
+      batchSize: env.OUTBOX_BATCH_SIZE,
     },
     reprocessor: {
       intervalMs: env.REPROCESSOR_INTERVAL_MS,
+      batchSize: env.REPROCESSOR_BATCH_SIZE,
+      leaseMs: env.REPROCESSOR_LEASE_MS,
       pendingReferenceTtlMs: env.PENDING_REFERENCE_TTL_MS,
       pendingReferenceMaxAttempts: env.PENDING_REFERENCE_MAX_ATTEMPTS,
+      pendingReferenceBackoffBaseMs: env.PENDING_REFERENCE_BACKOFF_BASE_MS,
+      pendingReferenceBackoffMaxMs: env.PENDING_REFERENCE_BACKOFF_MAX_MS,
     },
     faults: {
       exitAfterCommit: env.FAULT_EXIT_AFTER_COMMIT,
+      exitAfterPublish: env.FAULT_EXIT_AFTER_PUBLISH,
     },
   };
 }

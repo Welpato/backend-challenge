@@ -4,7 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { stdTimeFunctions } from 'pino';
 import type { Options as PinoHttpOptions } from 'pino-http';
 import type { AppConfig } from '@/config/app-config';
-import { CORRELATION_HEADER, currentCorrelationId, resolveCorrelationId } from './correlation';
+import { CORRELATION_HEADER, currentLogContext, resolveCorrelationId } from './correlation';
 import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS } from './log-redaction';
 
 /** Rotas operacionais (probes do Compose/Prometheus) só aparecem em `debug` quando dão certo. */
@@ -23,8 +23,8 @@ function requestLogLevel(req: IncomingMessage, res: ServerResponse, error?: Erro
 }
 
 /**
- * Opções do pino: JSON puro, `instanceId`/`role` em todas as linhas, `correlationId` vindo do
- * `AsyncLocalStorage` (via `mixin`) e redaction de valores monetários/saldos/corpos.
+ * Opções do pino: JSON puro, `instanceId`/`role` em todas as linhas, identificadores do fluxo vindos do
+ * `AsyncLocalStorage` (via `mixin`) e redaction de valores monetários/saldos/corpos/payloads.
  */
 export function buildLoggerOptions(config: AppConfig): PinoHttpOptions {
   return {
@@ -33,10 +33,9 @@ export function buildLoggerOptions(config: AppConfig): PinoHttpOptions {
     timestamp: stdTimeFunctions.isoTime,
     formatters: { level: (label: string) => ({ level: label }) },
     redact: { paths: [...LOG_REDACT_PATHS], censor: LOG_REDACT_CENSOR },
-    mixin: () => {
-      const correlationId = currentCorrelationId();
-      return correlationId === undefined ? {} : { correlationId };
-    },
+    // Identificadores do fluxo (correlationId, causationId, messageId, transactionId, walletId, providerId,
+    // kind, status, failureCode) vindos do AsyncLocalStorage — em qualquer log, inclusive do Nest.
+    mixin: () => currentLogContext(),
     // O middleware de correlação já definiu o header de resposta; o id do pino-http é o mesmo valor.
     genReqId: (req: IncomingMessage, res: ServerResponse) => {
       const fromResponse = res.getHeader(CORRELATION_HEADER);

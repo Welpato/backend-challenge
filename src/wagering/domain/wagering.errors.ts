@@ -1,5 +1,5 @@
 import { DomainError } from '@/shared/errors/domain-error';
-import type { FailureCode } from '@/shared/failure-code';
+import { FailureCode } from '@/shared/failure-code';
 import type { WagerTransactionStatus } from '@/wagering/domain/transaction-status';
 
 /**
@@ -31,5 +31,21 @@ export class InvalidTransactionStateError extends DomainError {
 export class InvalidWagerTransactionError extends DomainError {
   constructor(code: FailureCode | 'INVALID_WAGER_OPERATION', message: string) {
     super(code, message);
+  }
+}
+
+/**
+ * Conflito de idempotência: a mesma `Idempotency-Key` (`IDEMPOTENCY_CONFLICT`) ou o mesmo
+ * `(providerId, externalTransactionId)` com outra key (`EXTERNAL_ID_CONFLICT`) chegou com payload diferente.
+ * Não é replay e nada é gravado (409 / DLQ).
+ */
+export class IdempotencyConflictError extends DomainError {
+  constructor(code: typeof FailureCode.IDEMPOTENCY_CONFLICT | typeof FailureCode.EXTERNAL_ID_CONFLICT) {
+    super(
+      code,
+      code === FailureCode.IDEMPOTENCY_CONFLICT
+        ? 'Idempotency key was already used with a different payload'
+        : 'externalTransactionId was already used by this provider with a different payload',
+    );
   }
 }

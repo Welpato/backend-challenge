@@ -15,18 +15,22 @@ const SENSITIVE_KEYS = [
   'balanceAfterAmount',
   'balance_after_amount',
   'initialBalance',
+  'storedBalance',
+  'calculatedBalance',
+  'difference',
+  'credits',
+  'debits',
+  // Payloads inteiros (evento, envelope SQS, corpo de mensagem) também nunca vão para o log.
+  'payload',
+  'data',
+  'body',
+  'Body',
+  'MessageBody',
 ] as const;
 
 const NESTING_PREFIXES = ['', '*.', '*.*.'] as const;
 
-const FIXED_PATHS = [
-  'req.body',
-  'res.body',
-  'body',
-  'payload',
-  'req.headers.authorization',
-  'req.headers.cookie',
-] as const;
+const FIXED_PATHS = ['req.body', 'res.body', 'req.headers.authorization', 'req.headers.cookie'] as const;
 
 export const LOG_REDACT_PATHS: readonly string[] = [
   ...FIXED_PATHS,

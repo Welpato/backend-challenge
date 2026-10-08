@@ -346,4 +346,8 @@ Todo teste de integração/concorrência termina com `assertLedgerInvariant()`: 
 - `WALLET_NOT_FOUND` não é persistido (sem alvo de FK).
 - `FAILED` apenas para transações persistidas com retries de infra esgotados.
 - `PENDING` nunca fica visível após commit no fluxo síncrono (mantido no modelo pela máquina de estados).
+- Mesma operação (mesmo payload hash) com outra `Idempotency-Key` mas o mesmo `(providerId, externalTransactionId)` é **replay** (§5: "igual → devolve resultado armazenado"); só payload diferente vira `EXTERNAL_ID_CONFLICT`. *(F09, 2026-10-07)*
+- Resposta de transação `PENDING_REFERENCE` (nova ou replay, 202) e de replay `FAILED` (500) **sem** `balance`: não há snapshot gravado e o replay não recalcula nada. *(F09/F10, 2026-10-07)*
+- Referência de outro provider nunca é encontrada (a busca é por `(providerId, referenceExternalTransactionId)`): a operação fica `PENDING_REFERENCE` e expira como `REFERENCE_NOT_FOUND`. *(F10, 2026-10-07)*
+- Esgotado o TTL/tentativas, a pendência vira `REFERENCE_NOT_FOUND` mesmo que a referência exista mas continue pendente (cadeia de pendências). *(F10, 2026-10-07)*
 - Riscos: compatibilidade Bun × Nest × MikroORM (fase 00), FIFO + redrive no LocalStack (fase 01), head-of-line blocking do FIFO por wallet (aceito — ordenação por wallet é desejada).

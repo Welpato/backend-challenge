@@ -15,6 +15,7 @@
  */
 export const PgSqlState = {
   uniqueViolation: '23505',
+  foreignKeyViolation: '23503',
   checkViolation: '23514',
   serializationFailure: '40001',
   deadlockDetected: '40P01',
@@ -170,4 +171,21 @@ export function isUniqueViolation(error: unknown, constraint?: string): boolean 
   return (
     classified instanceof UniqueViolationError && (constraint === undefined || classified.constraint === constraint)
   );
+}
+
+/**
+ * `true` se o erro (ou alguém na cadeia `cause`) é violação de FK (`23503`) da constraint informada.
+ * Não vira classe própria: o único uso é o INSERT de `wager_transactions` com wallet inexistente
+ * (`wager_transactions_wallet_id_fkey` → `WALLET_NOT_FOUND`, F09); fora disso continua sendo bug (500).
+ */
+export function isForeignKeyViolation(error: unknown, constraint?: string): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && typeof current === 'object' && current !== null; depth += 1) {
+    const fields = fieldsOf(current);
+    if (fields?.code === PgSqlState.foreignKeyViolation) {
+      return constraint === undefined || fields.constraint === constraint;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }

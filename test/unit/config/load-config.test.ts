@@ -32,12 +32,21 @@ describe('loadConfig', () => {
       walletEvents: 'wallet-events.fifo',
     });
     expect(config.sqs.maxReceiveCount).toBe(5);
+    expect(config.sqs.consumerMaxInFlight).toBe(50);
+    expect(config.metrics.collectIntervalMs).toBe(5000);
+    expect(config.sqs.retryBackoffBaseMs).toBe(1000);
+    expect(config.sqs.retryBackoffMaxMs).toBe(300_000);
     expect(config.reprocessor).toEqual({
       intervalMs: 1000,
+      batchSize: 50,
+      leaseMs: 30_000,
       pendingReferenceTtlMs: 1_800_000,
       pendingReferenceMaxAttempts: 12,
+      pendingReferenceBackoffBaseMs: 2000,
+      pendingReferenceBackoffMaxMs: 300_000,
     });
-    expect(config.faults.exitAfterCommit).toBe(false);
+    expect(config.outbox).toEqual({ pollIntervalMs: 250, batchSize: 50 });
+    expect(config.faults).toEqual({ exitAfterCommit: false, exitAfterPublish: false });
   });
 
   it('reads explicit values', () => {
@@ -51,6 +60,9 @@ describe('loadConfig', () => {
       AWS_REGION: 'sa-east-1',
       SQS_WAGER_QUEUE_NAME: 'custom.fifo',
       FAULT_EXIT_AFTER_COMMIT: '1',
+      FAULT_EXIT_AFTER_PUBLISH: 'true',
+      PENDING_REFERENCE_BACKOFF_BASE_MS: '50',
+      OUTBOX_BATCH_SIZE: '10',
     });
 
     expect(config.role).toBe('consumer');
@@ -61,6 +73,9 @@ describe('loadConfig', () => {
     expect(config.sqs.region).toBe('sa-east-1');
     expect(config.sqs.queues.wagerTransactions).toBe('custom.fifo');
     expect(config.faults.exitAfterCommit).toBe(true);
+    expect(config.faults.exitAfterPublish).toBe(true);
+    expect(config.reprocessor.pendingReferenceBackoffBaseMs).toBe(50);
+    expect(config.outbox.batchSize).toBe(10);
   });
 
   it('treats empty variables as absent', () => {

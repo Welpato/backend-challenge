@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { Counter, type Registry } from 'prom-client';
+import type { AppMetrics } from '@/shared/observability/app-metrics';
 import type { ReconciliationMismatch, ReconciliationMonitor } from '@/wallet/application/reconciliation-monitor.port';
 
 export const RECONCILIATION_MISMATCHES_METRIC = 'reconciliation_mismatches_total';
@@ -10,18 +10,11 @@ export const RECONCILIATION_MISMATCHES_METRIC = 'reconciliation_mismatches_total
  */
 export class LoggingReconciliationMonitor implements ReconciliationMonitor {
   private readonly logger = new Logger('ReconcileWallet');
-  private readonly mismatches: Counter;
 
-  constructor(registry: Registry) {
-    this.mismatches = new Counter({
-      name: RECONCILIATION_MISMATCHES_METRIC,
-      help: 'Wallet reconciliations that found the stored balance or the ledger chain inconsistent',
-      registers: [registry],
-    });
-  }
+  constructor(private readonly metrics: AppMetrics) {}
 
   mismatch(mismatch: ReconciliationMismatch): void {
-    this.mismatches.inc();
+    this.metrics.reconciliationMismatches.inc();
     this.logger.warn(
       { walletId: mismatch.walletId, checkedEntries: mismatch.checkedEntries, issues: mismatch.issues },
       'Wallet reconciliation found a mismatch',

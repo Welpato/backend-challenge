@@ -7,6 +7,7 @@
  *   bun run test:integration                              # tudo em test/integration
  *   bun run test:integration -- test/integration/schema   # só um diretório/arquivo
  *   bun run test:integration:up                           # sobe a infra de teste antes
+ *   bun run test:concurrency [-- <paths>]                 # idem com default test/concurrency (TEST_SUITE)
  *
  * Cada passo roda num processo separado e herda o ambiente deste. Por isso este script precisa
  * rodar com NODE_ENV=test (o script do package.json já define): sem isso o Bun carregaria o `.env`
@@ -16,7 +17,8 @@
 // Módulo ES (top-level await) sem imports.
 export {};
 
-const DEFAULT_TARGETS = ['test/integration'];
+// `test:concurrency` reusa este runner com TEST_SUITE=test/concurrency (mesma infra, mesmas migrations).
+const DEFAULT_TARGETS = [process.env.TEST_SUITE ?? 'test/integration'];
 
 async function step(name: string, command: string[]): Promise<void> {
   const child = Bun.spawn(command, {

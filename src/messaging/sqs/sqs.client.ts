@@ -37,3 +37,69 @@ export class SqsQueueUrls {
     return output.QueueUrl;
   }
 }
+
+/** Códigos de erro do SQS/AWS que significam "tente de novo mais tarde" (throttling, indisponibilidade). */
+const TRANSIENT_SQS_ERROR_NAMES = new Set([
+  'ServiceUnavailable',
+  'InternalError',
+  'InternalFailure',
+  'RequestThrottled',
+  'ThrottlingException',
+  'Throttling',
+  'KmsThrottled',
+  'RequestTimeout',
+  'RequestTimeoutException',
+  'TimeoutError',
+  'AbortError',
+]);
+
+/** Erros de rede do Node/Bun (SQS inalcançável). */
+const TRANSIENT_NETWORK_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EPIPE',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ConnectionRefused',
+  'ConnectionClosed',
+]);
+
+/**
+ * Classifica uma falha do SQS: `true` = transitória (rede, timeout, throttling, 5xx) — reenviar depois é
+ * seguro; `false` = permanente (fila inexistente, parâmetro inválido, credencial). O publisher da outbox
+ * reagenda nos dois casos (nunca descarta evento); a classificação vai para o log e, na F12, decide entre
+ * reentrega e DLQ no consumidor.
+ */
+export function isTransientSqsError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const record = error as {
+    name?: unknown;
+    code?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+    $retryable?: unknown;
+  };
+  if (record.$retryable !== undefined && record.$retryable !== null) {
+    return true;
+  }
+  if (typeof record.name === 'string' && TRANSIENT_SQS_ERROR_NAMES.has(record.name)) {
+    return true;
+  }
+  if (typeof record.code === 'string' && TRANSIENT_NETWORK_CODES.has(record.code)) {
+    return true;
+  }
+  const status = record.$metadata?.httpStatusCode;
+  if (typeof status === 'number') {
+    return status >= 500 || status === 429;
+  }
+  // Sem resposta HTTP nenhuma (falha de conexão sem código conhecido) também é transitória.
+  return (
+    record.$metadata === undefined &&
+    typeof record.name === 'string' &&
+    /network|socket|fetch|connect/i.test(`${record.name} ${String((error as Error).message)}`)
+  );
+}

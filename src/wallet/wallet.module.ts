@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { Registry } from 'prom-client';
 import { AuthModule } from '@/auth/auth.module';
 import { OUTBOX_REPOSITORY, type OutboxRepository } from '@/messaging/outbox/application/outbox.repository.port';
 import { CLOCK, type Clock } from '@/shared/clock';
+import { AppMetrics } from '@/shared/observability/app-metrics';
 import { MetricsModule } from '@/shared/observability/metrics.module';
 import { UnitOfWork } from '@/shared/persistence/unit-of-work';
 import {
@@ -29,8 +29,8 @@ import { LoggingReconciliationMonitor } from '@/wallet/infrastructure/reconcilia
   providers: [
     {
       provide: RECONCILIATION_MONITOR,
-      useFactory: (registry: Registry) => new LoggingReconciliationMonitor(registry),
-      inject: [Registry],
+      useFactory: (metrics: AppMetrics) => new LoggingReconciliationMonitor(metrics),
+      inject: [AppMetrics],
     },
     {
       provide: CreateWallet,

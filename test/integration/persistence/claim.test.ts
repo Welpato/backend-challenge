@@ -45,7 +45,10 @@ async function claimInTwoTransactions<T>(claim: () => Promise<T[]>): Promise<[T[
       await bothClaimed.promise;
       return rows;
     });
-  return Promise.all([run(), run()]);
+  // Qual das duas transações reivindica primeiro não é determinístico: devolve a maior primeiro (corrige o
+  // teste intermitente registrado na F07/F08, que assumia a ordem do Promise.all).
+  const results = await Promise.all([run(), run()]);
+  return results.sort((a, b) => b.length - a.length) as [T[], T[]];
 }
 
 async function enqueueOutbox(count: number): Promise<OutboxMessage[]> {

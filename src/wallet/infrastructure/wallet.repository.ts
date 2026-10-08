@@ -1,5 +1,5 @@
 import type { EntityDictionary } from '@mikro-orm/core';
-import { ConcurrencyInvariantError } from '@/shared/persistence/persistence.errors';
+import { WalletVersionConflictError } from '@/shared/persistence/persistence.errors';
 import { UNTRACKED } from '@/shared/persistence/read-options';
 import { fromSafeInteger } from '@/shared/persistence/record-conversion';
 import type { UnitOfWork } from '@/shared/persistence/unit-of-work';
@@ -49,7 +49,7 @@ export class MikroOrmWalletRepository implements WalletRepository {
       { balance, version, updatedAt },
     );
     if (affected !== 1) {
-      throw new ConcurrencyInvariantError(
+      throw new WalletVersionConflictError(
         `Wallet ${wallet.id} was not at version ${expectedVersion} when updating its balance`,
       );
     }

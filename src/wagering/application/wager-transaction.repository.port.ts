@@ -28,4 +28,12 @@ export interface WagerTransactionRepository {
    * `next_attempt_at` delas para `agora + leaseMs` (lease): outra instância não as pega até lá. Devolve os ids.
    */
   claimDuePendingReferences(limit: number, leaseMs: number): Promise<string[]>;
+  /**
+   * Atalho do reprocessador (§8): antecipa para agora o `next_attempt_at` das transações `PENDING_REFERENCE`
+   * **da mesma wallet** que esperam por `(providerId, externalTransactionId)`. Chamado sob o lock dessa
+   * wallet, na transação que acabou de processar a referência. Devolve quantas foram antecipadas.
+   */
+  expediteDependents(walletId: string, providerId: string, externalTransactionId: string): Promise<number>;
+  /** Quantas transações estão em `PENDING_REFERENCE` (gauge `pending_references`). */
+  countPendingReferences(): Promise<number>;
 }

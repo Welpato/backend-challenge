@@ -64,16 +64,30 @@ export const envSchema = z.object({
   SQS_WAIT_TIME_SECONDS: intSetting(20, 0, 20),
   SQS_VISIBILITY_TIMEOUT_SECONDS: intSetting(30, 0, 43_200),
   SQS_MAX_RECEIVE_COUNT: intSetting(5, 1, 1000),
+  /** Backoff do consumidor em falha transitória: `ChangeMessageVisibility` = base·2^(recebimentos − 1), com teto. */
+  /** Mensagens em processamento ao mesmo tempo por instância do consumidor (o long-poll só pede o que cabe). */
+  SQS_CONSUMER_MAX_IN_FLIGHT: intSetting(50, 1, 1000),
+  SQS_RETRY_BACKOFF_BASE_MS: intSetting(1000, 1, 60 * 60_000),
+  SQS_RETRY_BACKOFF_MAX_MS: intSetting(5 * 60_000, 1000, 12 * 60 * 60_000),
 
+  /** Coleta periódica dos gauges que consultam o banco (outbox, pendências) — nunca no scrape. */
+  METRICS_COLLECT_INTERVAL_MS: intSetting(5000, 50, 10 * 60_000),
   HEALTH_CHECK_TIMEOUT_MS: intSetting(2000, 100, 30_000),
   SHUTDOWN_GRACE_MS: intSetting(20_000, 0, 120_000),
 
   OUTBOX_POLL_INTERVAL_MS: intSetting(250, 10, 60_000),
+  OUTBOX_BATCH_SIZE: intSetting(50, 1, 10_000),
   REPROCESSOR_INTERVAL_MS: intSetting(1000, 10, 60_000),
+  REPROCESSOR_BATCH_SIZE: intSetting(50, 1, 10_000),
+  REPROCESSOR_LEASE_MS: intSetting(30_000, 100, 60 * 60_000),
   PENDING_REFERENCE_TTL_MS: intSetting(30 * 60_000, 1000, 24 * 60 * 60_000),
   PENDING_REFERENCE_MAX_ATTEMPTS: intSetting(12, 1, 1000),
+  PENDING_REFERENCE_BACKOFF_BASE_MS: intSetting(2000, 1, 60 * 60_000),
+  PENDING_REFERENCE_BACKOFF_MAX_MS: intSetting(5 * 60_000, 1, 24 * 60 * 60_000),
 
   FAULT_EXIT_AFTER_COMMIT: flagSetting(),
+  /** Só testes da outbox (F11): o publisher morre depois do `SendMessageBatch` e antes do commit. */
+  FAULT_EXIT_AFTER_PUBLISH: flagSetting(),
 });
 
 export type RawEnv = z.input<typeof envSchema>;
